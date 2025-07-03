@@ -68,6 +68,29 @@ public class SecurityConfig {
                 // Customer endpoints - authenticated users only (role-based security in controller)
                 .requestMatchers("/api/v1/customers/**").authenticated()
                 
+                // Public technician endpoints (GET requests for browsing)
+                .requestMatchers(HttpMethod.GET, "/api/technicians/active").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/technicians/search").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/technicians/by-rating").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/technicians/*/skills").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/technicians/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/technicians/skills").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/technicians/skills/search").permitAll()
+                
+                // Technician self-management endpoints
+                .requestMatchers("/api/technicians/me/**").hasRole("TECHNICIAN")
+                
+                // Admin technician management endpoints
+                .requestMatchers(HttpMethod.GET, "/api/technicians").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/technicians/paginated").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/technicians/pending").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/technicians/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/technicians/*/skills").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/technicians/*/approve").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/technicians/*/reject").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/technicians/skills").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/technicians/skills/*").hasRole("ADMIN")
+                
                 // Role-based access
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/technician/**").hasRole("TECHNICIAN")
