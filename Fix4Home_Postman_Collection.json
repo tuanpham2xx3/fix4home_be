@@ -1,0 +1,225 @@
+{
+  "info": {
+    "name": "Fix4Home Backend API",
+    "description": "Complete API collection for Fix4Home backend testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "customerToken",
+      "value": ""
+    },
+    {
+      "key": "technicianToken", 
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register Customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"customer_test\",\n  \"password\": \"password123\",\n  \"email\": \"customer.test@example.com\",\n  \"phoneNumber\": \"0123456789\",\n  \"role\": \"CUSTOMER\",\n  \"fullName\": \"Test Customer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Register Technician",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"technician_test\",\n  \"password\": \"password123\",\n  \"email\": \"technician.test@example.com\",\n  \"phoneNumber\": \"0987654321\",\n  \"role\": \"TECHNICIAN\",\n  \"fullName\": \"Test Technician\",\n  \"skills\": \"Plumbing, Electrical, HVAC\",\n  \"experience\": \"5+ years in home repair services\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Customer Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernameOrEmail\": \"customer_test\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.to.have.status(200)) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('customerToken', response.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Technician Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernameOrEmail\": \"technician_test\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.to.have.status(200)) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('technicianToken', response.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Protected Endpoints",
+      "item": [
+        {
+          "name": "Customer Access Test",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/test/customer",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "test", "customer"]
+            }
+          }
+        },
+        {
+          "name": "Technician Access Test",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/test/technician",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "test", "technician"]
+            }
+          }
+        },
+        {
+          "name": "Any Role Access Test",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/test/any-role",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "test", "any-role"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Application Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/test/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "test", "health"]
+            }
+          }
+        },
+        {
+          "name": "Database Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/test/database",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "test", "database"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+} 
