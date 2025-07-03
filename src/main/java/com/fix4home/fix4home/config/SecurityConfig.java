@@ -65,10 +65,12 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/services/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/services/*/hard").hasRole("ADMIN")
                 
+                // Customer endpoints - authenticated users only (role-based security in controller)
+                .requestMatchers("/api/v1/customers/**").authenticated()
+                
                 // Role-based access
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/technician/**").hasRole("TECHNICIAN")
-                .requestMatchers("/api/v1/customer/**").hasRole("CUSTOMER")
                 
                 // Any other request needs authentication
                 .anyRequest().authenticated()
