@@ -21,6 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.http.HttpMethod;
 
 import java.util.Arrays;
 
@@ -47,6 +48,22 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/test/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
+                
+                // Public service endpoints (GET requests for browsing)
+                .requestMatchers(HttpMethod.GET, "/api/v1/services").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/services/active").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/services/search").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/services/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/services/health").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/services/paginated").permitAll()
+                
+                // Admin service endpoints (modification operations)
+                .requestMatchers(HttpMethod.POST, "/api/v1/services").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/services/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/services/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/services/*/toggle-status").hasRole("ADMIN")
+                .requestMatchers("/api/v1/services/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/services/*/hard").hasRole("ADMIN")
                 
                 // Role-based access
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
