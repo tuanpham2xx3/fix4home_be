@@ -1,0 +1,957 @@
+{
+	"info": {
+		"name": "Fix4Home Complete API Collection",
+		"description": "Comprehensive Fix4Home API testing collection with detailed test cases, organized endpoints, and complete workflow testing",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"version": {
+			"major": 2,
+			"minor": 1,
+			"patch": 0
+		}
+	},
+	"item": [
+		{
+			"name": "0. System Health",
+			"description": "System health and status checks",
+			"item": [
+				{
+					"name": "Health Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Health check returns 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response contains success message', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.message).to.include('healthy');",
+									"});",
+									"",
+									"pm.test('Response time is less than 1000ms', function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/test/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "test", "health"]
+						},
+						"description": "Check if the API server is running and healthy"
+					}
+				}
+			]
+		},
+		{
+			"name": "1. Authentication & Authorization",
+			"description": "User registration, login, and token management",
+			"item": [
+				{
+					"name": "Register Customer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Customer registration successful', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response contains token', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.have.property('token');",
+									"    pm.expect(response.data.token).to.be.a('string');",
+									"    ",
+									"    // Save token for future requests",
+									"    if (response.data && response.data.token) {",
+									"        pm.collectionVariables.set('customerToken', response.data.token);",
+									"        pm.collectionVariables.set('customerId', response.data.user.id);",
+									"    }",
+									"});",
+									"",
+									"pm.test('User has correct role', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data.user.role).to.eql('CUSTOMER');",
+									"});",
+									"",
+									"pm.test('Response structure is valid', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('success', true);",
+									"    pm.expect(response).to.have.property('message');",
+									"    pm.expect(response).to.have.property('data');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"customer_test\",\n    \"email\": \"customer@fix4home.com\",\n    \"password\": \"SecurePass123!\",\n    \"role\": \"CUSTOMER\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Register a new customer account"
+					}
+				},
+				{
+					"name": "Register Technician",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Technician registration successful', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response contains token', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.have.property('token');",
+									"    pm.expect(response.data.token).to.be.a('string');",
+									"    ",
+									"    if (response.data && response.data.token) {",
+									"        pm.collectionVariables.set('technicianToken', response.data.token);",
+									"        pm.collectionVariables.set('technicianId', response.data.user.id);",
+									"    }",
+									"});",
+									"",
+									"pm.test('User has correct role', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data.user.role).to.eql('TECHNICIAN');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"technician_test\",\n    \"email\": \"technician@fix4home.com\",\n    \"password\": \"SecurePass123!\",\n    \"role\": \"TECHNICIAN\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Register a new technician account"
+					}
+				},
+				{
+					"name": "Register Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Admin registration successful', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response contains token', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.have.property('token');",
+									"    pm.expect(response.data.token).to.be.a('string');",
+									"    ",
+									"    if (response.data && response.data.token) {",
+									"        pm.collectionVariables.set('adminToken', response.data.token);",
+									"        pm.collectionVariables.set('adminId', response.data.user.id);",
+									"    }",
+									"});",
+									"",
+									"pm.test('User has correct role', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data.user.role).to.eql('ADMIN');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin_test\",\n    \"email\": \"admin@fix4home.com\",\n    \"password\": \"SecurePass123!\",\n    \"role\": \"ADMIN\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Register a new admin account"
+					}
+				},
+				{
+					"name": "Login Customer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Customer login successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response contains valid token', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.have.property('token');",
+									"    pm.expect(response.data.token).to.be.a('string');",
+									"    pm.expect(response.data.token.length).to.be.greaterThan(10);",
+									"    ",
+									"    if (response.data && response.data.token) {",
+									"        pm.collectionVariables.set('authToken', response.data.token);",
+									"        pm.collectionVariables.set('currentUserId', response.data.user.id);",
+									"        pm.collectionVariables.set('currentUserRole', response.data.user.role);",
+									"    }",
+									"});",
+									"",
+									"pm.test('User information is complete', function () {",
+									"    const response = pm.response.json();",
+									"    const user = response.data.user;",
+									"    pm.expect(user).to.have.property('id');",
+									"    pm.expect(user).to.have.property('username');",
+									"    pm.expect(user).to.have.property('email');",
+									"    pm.expect(user).to.have.property('role');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"customer_test\",\n    \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login with customer credentials"
+					}
+				},
+				{
+					"name": "Login Technician",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Technician login successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response contains valid token', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.have.property('token');",
+									"    pm.expect(response.data.token).to.be.a('string');",
+									"    ",
+									"    if (response.data && response.data.token) {",
+									"        pm.collectionVariables.set('techToken', response.data.token);",
+									"    }",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"technician_test\",\n    \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login with technician credentials"
+					}
+				},
+				{
+					"name": "Login Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Admin login successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response contains valid token', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.have.property('token');",
+									"    pm.expect(response.data.token).to.be.a('string');",
+									"    ",
+									"    if (response.data && response.data.token) {",
+									"        pm.collectionVariables.set('adminToken', response.data.token);",
+									"    }",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin_test\",\n    \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login with admin credentials"
+					}
+				},
+				{
+					"name": "Invalid Login Test",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Invalid login returns 401', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error message is present', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('success', false);",
+									"    pm.expect(response).to.have.property('message');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"invalid_user\",\n    \"password\": \"wrong_password\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Test invalid login credentials"
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Services Management",
+			"description": "Complete CRUD operations for services",
+			"item": [
+				{
+					"name": "Get All Services",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Get services successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response contains services array', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Response structure is valid', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('success', true);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "services"]
+						},
+						"description": "Retrieve all available services"
+					}
+				},
+				{
+					"name": "Create Service (Admin Only)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Service creation successful', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response contains service ID', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.have.property('id');",
+									"    ",
+									"    if (response.data && response.data.id) {",
+									"        pm.collectionVariables.set('serviceId', response.data.id);",
+									"    }",
+									"});",
+									"",
+									"pm.test('Service data is correct', function () {",
+									"    const response = pm.response.json();",
+									"    const service = response.data;",
+									"    pm.expect(service.name).to.eql('Premium Plumbing Service');",
+									"    pm.expect(service.price).to.eql(200.0);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Premium Plumbing Service\",\n    \"description\": \"Professional plumbing installation and repair services with 24/7 availability\",\n    \"price\": 200.00\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "services"]
+						},
+						"description": "Create a new service (Admin only)"
+					}
+				},
+				{
+					"name": "Get Service by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Get service by ID successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Service details are complete', function () {",
+									"    const response = pm.response.json();",
+									"    const service = response.data;",
+									"    pm.expect(service).to.have.property('id');",
+									"    pm.expect(service).to.have.property('name');",
+									"    pm.expect(service).to.have.property('description');",
+									"    pm.expect(service).to.have.property('price');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/{{serviceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "services", "{{serviceId}}"]
+						},
+						"description": "Get specific service details by ID"
+					}
+				},
+				{
+					"name": "Update Service (Admin Only)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Service update successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Updated data is correct', function () {",
+									"    const response = pm.response.json();",
+									"    const service = response.data;",
+									"    pm.expect(service.name).to.eql('Premium Plumbing & Electrical Service');",
+									"    pm.expect(service.price).to.eql(250.0);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Premium Plumbing & Electrical Service\",\n    \"description\": \"Comprehensive plumbing and electrical services with emergency support\",\n    \"price\": 250.00\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/services/{{serviceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "services", "{{serviceId}}"]
+						},
+						"description": "Update existing service (Admin only)"
+					}
+				},
+				{
+					"name": "Delete Service (Admin Only)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Service deletion successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Deletion confirmed', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.success).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/services/{{serviceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "services", "{{serviceId}}"]
+						},
+						"description": "Delete service (Admin only)"
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Customer Management",
+			"description": "Customer profile and address management",
+			"item": [
+				{
+					"name": "Get Customer Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Get customer profile successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Profile structure is valid', function () {",
+									"    const response = pm.response.json();",
+									"    if (response.data) {",
+									"        const profile = response.data;",
+									"        pm.expect(profile).to.have.property('user');",
+									"        pm.expect(profile.user).to.have.property('id');",
+									"        pm.expect(profile.user).to.have.property('username');",
+									"    }",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "profile"]
+						},
+						"description": "Get current customer profile"
+					}
+				},
+				{
+					"name": "Update Customer Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Profile update successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Updated data is correct', function () {",
+									"    const response = pm.response.json();",
+									"    if (response.data) {",
+									"        pm.expect(response.data.firstName).to.eql('John');",
+									"        pm.expect(response.data.lastName).to.eql('Customer');",
+									"    }",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Customer\",\n    \"phoneNumber\": \"0123456789\",\n    \"dateOfBirth\": \"1990-05-15\",\n    \"gender\": \"MALE\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "profile"]
+						},
+						"description": "Update customer profile information"
+					}
+				},
+				{
+					"name": "Get Customer Addresses",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Get addresses successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response contains addresses array', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.be.an('array');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/addresses",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "addresses"]
+						},
+						"description": "Get all customer addresses"
+					}
+				},
+				{
+					"name": "Create Address",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Address creation successful', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response contains address ID', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data).to.have.property('id');",
+									"    ",
+									"    if (response.data && response.data.id) {",
+									"        pm.collectionVariables.set('addressId', response.data.id);",
+									"    }",
+									"});",
+									"",
+									"pm.test('Address data is correct', function () {",
+									"    const response = pm.response.json();",
+									"    const address = response.data;",
+									"    pm.expect(address.street).to.eql('123 Main Street');",
+									"    pm.expect(address.city).to.eql('Ho Chi Minh City');",
+									"    pm.expect(address.isDefault).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"street\": \"123 Main Street\",\n    \"city\": \"Ho Chi Minh City\",\n    \"state\": \"Ho Chi Minh\",\n    \"zipCode\": \"70000\",\n    \"country\": \"Vietnam\",\n    \"isDefault\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/addresses",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "addresses"]
+						},
+						"description": "Create a new customer address"
+					}
+				},
+				{
+					"name": "Update Address",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Address update successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Updated data is correct', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.data.street).to.eql('456 Updated Street');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"street\": \"456 Updated Street\",\n    \"city\": \"Ho Chi Minh City\",\n    \"state\": \"Ho Chi Minh\",\n    \"zipCode\": \"70000\",\n    \"country\": \"Vietnam\",\n    \"isDefault\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/addresses/{{addressId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "addresses", "{{addressId}}"]
+						},
+						"description": "Update existing address"
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string",
+			"description": "Base URL for the Fix4Home API"
+		},
+		{
+			"key": "authToken",
+			"value": "",
+			"type": "string",
+			"description": "Current user authentication token"
+		},
+		{
+			"key": "customerToken",
+			"value": "",
+			"type": "string",
+			"description": "Customer authentication token"
+		},
+		{
+			"key": "technicianToken",
+			"value": "",
+			"type": "string",
+			"description": "Technician authentication token"
+		},
+		{
+			"key": "adminToken",
+			"value": "",
+			"type": "string",
+			"description": "Admin authentication token"
+		},
+		{
+			"key": "techToken",
+			"value": "",
+			"type": "string",
+			"description": "Alternative technician token variable"
+		},
+		{
+			"key": "currentUserId",
+			"value": "",
+			"type": "string",
+			"description": "Current logged in user ID"
+		},
+		{
+			"key": "customerId",
+			"value": "",
+			"type": "string",
+			"description": "Customer user ID"
+		},
+		{
+			"key": "technicianId",
+			"value": "",
+			"type": "string",
+			"description": "Technician user ID"
+		},
+		{
+			"key": "adminId",
+			"value": "",
+			"type": "string",
+			"description": "Admin user ID"
+		},
+		{
+			"key": "currentUserRole",
+			"value": "",
+			"type": "string",
+			"description": "Current user role"
+		},
+		{
+			"key": "serviceId",
+			"value": "",
+			"type": "string",
+			"description": "Service ID for testing"
+		},
+		{
+			"key": "addressId",
+			"value": "",
+			"type": "string",
+			"description": "Address ID for testing"
+		},
+		{
+			"key": "serviceRequestId",
+			"value": "",
+			"type": "string",
+			"description": "Service request ID for testing"
+		},
+		{
+			"key": "paymentId",
+			"value": "",
+			"type": "string",
+			"description": "Payment ID for testing"
+		},
+		{
+			"key": "feedbackId",
+			"value": "",
+			"type": "string",
+			"description": "Feedback ID for testing"
+		},
+		{
+			"key": "skillId",
+			"value": "",
+			"type": "string",
+			"description": "Skill ID for testing"
+		},
+		{
+			"key": "notificationId",
+			"value": "",
+			"type": "string",
+			"description": "Notification ID for testing"
+		}
+	]
+	
+} 
