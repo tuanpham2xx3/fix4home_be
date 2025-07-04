@@ -5,6 +5,7 @@ import com.fix4home.fix4home.model.dto.service.CreateServiceRequest;
 import com.fix4home.fix4home.model.dto.service.ServiceDTO;
 import com.fix4home.fix4home.model.dto.service.UpdateServiceRequest;
 import com.fix4home.fix4home.service.ServiceService;
+import com.fix4home.fix4home.security.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,7 +38,7 @@ public class ServiceController {
     }
 
     @GetMapping("/admin/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get all services (Admin only)", description = "Retrieve all services including inactive ones - Admin only")
     public ResponseEntity<ApiResponse<List<ServiceDTO>>> getAllServicesForAdmin() {
         log.info("GET /api/v1/services/admin/all - Admin fetching all services");
@@ -79,7 +80,7 @@ public class ServiceController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Create new service", description = "Create a new service - Admin only")
     public ResponseEntity<ApiResponse<ServiceDTO>> createService(
             @Valid @RequestBody CreateServiceRequest request) {
@@ -90,7 +91,7 @@ public class ServiceController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Update service", description = "Update an existing service - Admin only")
     public ResponseEntity<ApiResponse<ServiceDTO>> updateService(
             @Parameter(description = "Service ID") @PathVariable Long id,
@@ -101,7 +102,7 @@ public class ServiceController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Soft delete service", description = "Soft delete a service (set status to INACTIVE) - Admin only")
     public ResponseEntity<ApiResponse<String>> deleteService(
             @Parameter(description = "Service ID") @PathVariable Long id) {
@@ -111,7 +112,7 @@ public class ServiceController {
     }
 
     @DeleteMapping("/{id}/hard")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Hard delete service", description = "Permanently delete a service from database - Admin only")
     public ResponseEntity<ApiResponse<String>> hardDeleteService(
             @Parameter(description = "Service ID") @PathVariable Long id) {
@@ -121,7 +122,7 @@ public class ServiceController {
     }
 
     @PatchMapping("/{id}/toggle-status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Toggle service status", description = "Toggle service status between ACTIVE and INACTIVE - Admin only")
     public ResponseEntity<ApiResponse<ServiceDTO>> toggleServiceStatus(
             @Parameter(description = "Service ID") @PathVariable Long id) {

@@ -3,6 +3,7 @@ package com.fix4home.fix4home.controller;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.dto.feedback.*;
 import com.fix4home.fix4home.service.FeedbackService;
+import com.fix4home.fix4home.security.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,7 +39,7 @@ public class FeedbackController {
     // ====== CUSTOMER ENDPOINTS ======
 
     @PostMapping("/create")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Tạo đánh giá", description = "Khách hàng tạo đánh giá cho dịch vụ đã hoàn thành")
     public ResponseEntity<ApiResponse<FeedbackDTO>> createFeedback(
             @Valid @RequestBody CreateFeedbackRequest request) {
@@ -48,7 +49,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/my")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Đánh giá của tôi", description = "Xem danh sách đánh giá đã tạo")
     public ResponseEntity<ApiResponse<Page<FeedbackDTO>>> getMyFeedbacks(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -61,7 +62,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/my/{feedbackId}")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Chi tiết đánh giá", description = "Xem chi tiết đánh giá đã tạo")
     public ResponseEntity<ApiResponse<FeedbackDTO>> getMyFeedbackDetails(
             @PathVariable Long feedbackId) {
@@ -73,7 +74,7 @@ public class FeedbackController {
     // ====== TECHNICIAN ENDPOINTS ======
 
     @GetMapping("/technician/my")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Đánh giá về tôi", description = "Thợ xem đánh giá về mình")
     public ResponseEntity<ApiResponse<Page<FeedbackDTO>>> getMyReceivedFeedbacks(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -86,7 +87,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/technician/my/unreplied")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Đánh giá chưa phản hồi", description = "Thợ xem đánh giá chưa phản hồi")
     public ResponseEntity<ApiResponse<Page<FeedbackDTO>>> getMyUnrepliedFeedbacks(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -97,7 +98,7 @@ public class FeedbackController {
     }
 
     @PutMapping("/{feedbackId}/reply")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Phản hồi đánh giá", description = "Thợ phản hồi đánh giá của khách hàng")
     public ResponseEntity<ApiResponse<FeedbackDTO>> replyToFeedback(
             @PathVariable Long feedbackId,
@@ -108,7 +109,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/technician/my/stats")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Thống kê đánh giá", description = "Thợ xem thống kê đánh giá về mình")
     public ResponseEntity<ApiResponse<FeedbackStatsDTO>> getMyFeedbackStats() {
         Long technicianId = getCurrentUserId();
@@ -119,7 +120,7 @@ public class FeedbackController {
     // ====== ADMIN ENDPOINTS ======
 
     @GetMapping("/admin/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "[ADMIN] Xem tất cả đánh giá", description = "Admin xem tất cả đánh giá trong hệ thống")
     public ResponseEntity<ApiResponse<Page<FeedbackDTO>>> getAllFeedbacks(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -131,7 +132,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/admin/rating/{rating}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "[ADMIN] Đánh giá theo điểm", description = "Admin xem đánh giá theo điểm cụ thể")
     public ResponseEntity<ApiResponse<Page<FeedbackDTO>>> getFeedbacksByRating(
             @PathVariable Integer rating,
@@ -142,7 +143,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/admin/unreplied")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "[ADMIN] Đánh giá chưa phản hồi", description = "Admin xem đánh giá chưa được phản hồi")
     public ResponseEntity<ApiResponse<Page<FeedbackDTO>>> getUnrepliedFeedbacks(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -152,7 +153,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/admin/search")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "[ADMIN] Tìm kiếm đánh giá", description = "Admin tìm kiếm đánh giá theo từ khóa")
     public ResponseEntity<ApiResponse<Page<FeedbackDTO>>> searchFeedbacks(
             @Parameter(description = "Từ khóa tìm kiếm") @RequestParam String keyword,
@@ -163,7 +164,7 @@ public class FeedbackController {
     }
 
     @GetMapping("/admin/stats")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "[ADMIN] Thống kê hệ thống", description = "Admin xem thống kê đánh giá toàn hệ thống")
     public ResponseEntity<ApiResponse<FeedbackStatsDTO>> getSystemFeedbackStats() {
         FeedbackStatsDTO stats = feedbackService.getSystemFeedbackStats();

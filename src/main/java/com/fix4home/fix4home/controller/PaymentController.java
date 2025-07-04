@@ -4,6 +4,7 @@ import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.dto.payment.*;
 import com.fix4home.fix4home.model.enums.PaymentStatus;
 import com.fix4home.fix4home.service.PaymentService;
+import com.fix4home.fix4home.security.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,7 +39,7 @@ public class PaymentController {
     // ====== CUSTOMER ENDPOINTS ======
 
     @PostMapping("/create")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Tạo thanh toán", description = "Khách hàng tạo thanh toán cho dịch vụ đã hoàn thành")
     public ResponseEntity<ApiResponse<PaymentDTO>> createPayment(
             @Valid @RequestBody CreatePaymentRequest request) {
@@ -47,7 +48,7 @@ public class PaymentController {
     }
 
     @GetMapping("/my")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Lịch sử thanh toán của khách hàng", description = "Xem lịch sử thanh toán của khách hàng")
     public ResponseEntity<ApiResponse<Page<PaymentDTO>>> getMyPayments(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -61,7 +62,7 @@ public class PaymentController {
     }
 
     @GetMapping("/my/pending")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Thanh toán chờ xử lý", description = "Xem danh sách thanh toán chờ xử lý của khách hàng")
     public ResponseEntity<ApiResponse<List<PaymentDTO>>> getMyPendingPayments() {
         Long customerId = getCurrentUserId();
@@ -70,7 +71,7 @@ public class PaymentController {
     }
 
     @GetMapping("/my/stats")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Thống kê thanh toán khách hàng", description = "Xem thống kê thanh toán của khách hàng")
     public ResponseEntity<ApiResponse<PaymentStatsDTO>> getMyPaymentStats() {
         Long customerId = getCurrentUserId();
@@ -81,7 +82,7 @@ public class PaymentController {
     // ====== TECHNICIAN ENDPOINTS ======
 
     @GetMapping("/technician/my")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Thu nhập của thợ", description = "Xem thu nhập từ các công việc đã hoàn thành")
     public ResponseEntity<ApiResponse<Page<PaymentDTO>>> getMyEarnings(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -94,7 +95,7 @@ public class PaymentController {
     }
 
     @GetMapping("/technician/my/stats")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Thống kê thu nhập thợ", description = "Xem thống kê thu nhập của thợ")
     public ResponseEntity<ApiResponse<PaymentStatsDTO>> getMyEarningsStats() {
         Long technicianId = getCurrentUserId();
@@ -105,7 +106,7 @@ public class PaymentController {
     // ====== ADMIN ENDPOINTS ======
 
     @GetMapping("/admin/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "[ADMIN] Xem tất cả thanh toán", description = "Admin xem tất cả thanh toán trong hệ thống")
     public ResponseEntity<ApiResponse<Page<PaymentDTO>>> getAllPayments(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -117,7 +118,7 @@ public class PaymentController {
     }
 
     @GetMapping("/admin/failed")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "[ADMIN] Thanh toán thất bại", description = "Admin xem danh sách thanh toán thất bại")
     public ResponseEntity<ApiResponse<Page<PaymentDTO>>> getFailedPayments(
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "0") int page,
@@ -127,7 +128,7 @@ public class PaymentController {
     }
 
     @GetMapping("/admin/stats")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "[ADMIN] Thống kê thanh toán hệ thống", description = "Admin xem thống kê tổng quan thanh toán")
     public ResponseEntity<ApiResponse<PaymentStatsDTO>> getSystemPaymentStats() {
         PaymentStatsDTO stats = paymentService.getSystemPaymentStats();

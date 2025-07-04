@@ -4,6 +4,7 @@ import com.fix4home.fix4home.model.dto.admin.*;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.service.AdminService;
+import com.fix4home.fix4home.security.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,7 +24,7 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Admin Controller", description = "System administration APIs for managing the Fix4Home platform")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
 public class AdminController {
 
     private final AdminService adminService;

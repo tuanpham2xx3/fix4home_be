@@ -1,5 +1,6 @@
 package com.fix4home.fix4home.controller;
 
+import com.fix4home.fix4home.security.SecurityConstants;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,7 +35,7 @@ public class TestController {
     }
 
     @GetMapping("/customer")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     public Map<String, Object> customerEndpoint(Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Customer access granted");
@@ -45,7 +46,7 @@ public class TestController {
     }
 
     @GetMapping("/technician")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     public Map<String, Object> technicianEndpoint(Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Technician access granted");
@@ -56,7 +57,7 @@ public class TestController {
     }
 
     @GetMapping("/admin")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     public Map<String, Object> adminEndpoint(Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Admin access granted");
@@ -67,7 +68,7 @@ public class TestController {
     }
 
     @GetMapping("/any-role")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'TECHNICIAN', 'ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     public Map<String, Object> anyRoleEndpoint(Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Authenticated user access granted");

@@ -3,6 +3,7 @@ package com.fix4home.fix4home.controller;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.dto.customer.*;
 import com.fix4home.fix4home.service.CustomerService;
+import com.fix4home.fix4home.security.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +30,7 @@ public class CustomerController {
     // ==================== PROFILE MANAGEMENT ====================
 
     @GetMapping("/profile")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Get my profile", description = "Get current customer's profile information")
     public ResponseEntity<ApiResponse<CustomerProfileDTO>> getMyProfile() {
         log.info("GET /api/v1/customers/profile - Get current customer profile");
@@ -38,7 +39,7 @@ public class CustomerController {
     }
 
     @PutMapping("/profile")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Update my profile", description = "Update current customer's profile information")
     public ResponseEntity<ApiResponse<CustomerProfileDTO>> updateMyProfile(
             @Valid @RequestBody UpdateCustomerProfileRequest request) {
@@ -48,7 +49,7 @@ public class CustomerController {
     }
 
     @GetMapping("/{userId}/profile")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get customer profile by ID", description = "Get specific customer's profile - Admin only")
     public ResponseEntity<ApiResponse<CustomerProfileDTO>> getCustomerProfile(
             @Parameter(description = "Customer User ID") @PathVariable Long userId) {
@@ -58,7 +59,7 @@ public class CustomerController {
     }
 
     @PutMapping("/{userId}/profile")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Update customer profile by ID", description = "Update specific customer's profile - Admin only")
     public ResponseEntity<ApiResponse<CustomerProfileDTO>> updateCustomerProfile(
             @Parameter(description = "Customer User ID") @PathVariable Long userId,
@@ -69,7 +70,7 @@ public class CustomerController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get all customers", description = "Get all customer profiles - Admin only")
     public ResponseEntity<ApiResponse<List<CustomerProfileDTO>>> getAllCustomers() {
         log.info("GET /api/v1/customers - Admin getting all customers");
@@ -78,7 +79,7 @@ public class CustomerController {
     }
 
     @GetMapping("/paginated")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get customers with pagination", description = "Get customers with pagination - Admin only")
     public ResponseEntity<ApiResponse<Page<CustomerProfileDTO>>> getCustomersWithPagination(
             @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
@@ -96,7 +97,7 @@ public class CustomerController {
     // ==================== ADDRESS MANAGEMENT ====================
 
     @GetMapping("/addresses")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Get my addresses", description = "Get current customer's addresses")
     public ResponseEntity<ApiResponse<List<AddressDTO>>> getMyAddresses() {
         log.info("GET /api/v1/customers/addresses - Get current customer addresses");
@@ -105,7 +106,7 @@ public class CustomerController {
     }
 
     @PostMapping("/addresses")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Create new address", description = "Create a new address for current customer")
     public ResponseEntity<ApiResponse<AddressDTO>> createAddress(
             @Valid @RequestBody CreateAddressRequest request) {
@@ -116,7 +117,7 @@ public class CustomerController {
     }
 
     @GetMapping("/addresses/{addressId}")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Get address by ID", description = "Get specific address details")
     public ResponseEntity<ApiResponse<AddressDTO>> getAddressById(
             @Parameter(description = "Address ID") @PathVariable Long addressId) {
@@ -126,7 +127,7 @@ public class CustomerController {
     }
 
     @PutMapping("/addresses/{addressId}")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Update address", description = "Update customer's own address")
     public ResponseEntity<ApiResponse<AddressDTO>> updateAddress(
             @Parameter(description = "Address ID") @PathVariable Long addressId,
@@ -137,7 +138,7 @@ public class CustomerController {
     }
 
     @DeleteMapping("/addresses/{addressId}")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Delete address", description = "Delete customer's own address")
     public ResponseEntity<ApiResponse<String>> deleteAddress(
             @Parameter(description = "Address ID") @PathVariable Long addressId) {
@@ -149,7 +150,7 @@ public class CustomerController {
     // ==================== ADMIN ADDRESS MANAGEMENT ====================
 
     @GetMapping("/{userId}/addresses")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get customer addresses", description = "Get addresses for specific customer - Admin only")
     public ResponseEntity<ApiResponse<List<AddressDTO>>> getCustomerAddresses(
             @Parameter(description = "Customer User ID") @PathVariable Long userId) {

@@ -4,6 +4,7 @@ import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.dto.servicerequest.*;
 import com.fix4home.fix4home.model.enums.ServiceRequestStatus;
 import com.fix4home.fix4home.service.ServiceRequestService;
+import com.fix4home.fix4home.security.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,7 +31,7 @@ public class ServiceRequestController {
     // ==================== CUSTOMER OPERATIONS ====================
 
     @PostMapping
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Create new service request", 
                description = "Customer creates a new service request for a specific service and address")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> createServiceRequest(
@@ -44,7 +45,7 @@ public class ServiceRequestController {
     }
 
     @GetMapping("/my")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Get my service requests", 
                description = "Customer views all their service requests")
     public ResponseEntity<ApiResponse<List<ServiceRequestDTO>>> getMyServiceRequests() {
@@ -57,7 +58,7 @@ public class ServiceRequestController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Get service request details", 
                description = "Get detailed information about a specific service request")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> getServiceRequestById(
@@ -71,7 +72,7 @@ public class ServiceRequestController {
     }
 
     @PutMapping("/{id}/cancel")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_OR_ADMIN_ROLE)
     @Operation(summary = "Cancel service request", 
                description = "Customer or admin cancels a service request")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> cancelServiceRequest(
@@ -87,7 +88,7 @@ public class ServiceRequestController {
     // ==================== TECHNICIAN OPERATIONS ====================
 
     @GetMapping("/available")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Get available service requests", 
                description = "Technician views all unassigned service requests available for acceptance")
     public ResponseEntity<ApiResponse<List<ServiceRequestSummaryDTO>>> getAvailableServiceRequests() {
@@ -100,7 +101,7 @@ public class ServiceRequestController {
     }
 
     @GetMapping("/my-assignments")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Get my assigned requests", 
                description = "Technician views all their assigned service requests")
     public ResponseEntity<ApiResponse<List<ServiceRequestDTO>>> getMyAssignedRequests() {
@@ -113,7 +114,7 @@ public class ServiceRequestController {
     }
 
     @PutMapping("/{id}/accept")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Accept service request", 
                description = "Technician accepts an available service request")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> acceptServiceRequest(
@@ -127,7 +128,7 @@ public class ServiceRequestController {
     }
 
     @PutMapping("/{id}/decline")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Decline service request", 
                description = "Technician declines an assigned service request")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> declineServiceRequest(
@@ -141,7 +142,7 @@ public class ServiceRequestController {
     }
 
     @PutMapping("/{id}/start")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Start work on service request", 
                description = "Technician starts working on an assigned service request")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> startWork(
@@ -155,7 +156,7 @@ public class ServiceRequestController {
     }
 
     @PutMapping("/{id}/complete")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Complete work on service request", 
                description = "Technician marks service request as completed")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> completeWork(
@@ -171,7 +172,7 @@ public class ServiceRequestController {
     // ==================== ADMIN OPERATIONS ====================
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get all service requests (Admin)", 
                description = "Admin views all service requests with pagination and sorting")
     public ResponseEntity<ApiResponse<Page<ServiceRequestSummaryDTO>>> getAllServiceRequests(
@@ -189,7 +190,7 @@ public class ServiceRequestController {
     }
 
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get service requests by status (Admin)", 
                description = "Admin views service requests filtered by status")
     public ResponseEntity<ApiResponse<List<ServiceRequestSummaryDTO>>> getServiceRequestsByStatus(
@@ -203,7 +204,7 @@ public class ServiceRequestController {
     }
 
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Assign technician to service request (Admin)", 
                description = "Admin assigns a specific technician to a service request")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> assignTechnician(
@@ -218,7 +219,7 @@ public class ServiceRequestController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Update service request status (Admin)", 
                description = "Admin updates the status of a service request")
     public ResponseEntity<ApiResponse<ServiceRequestDTO>> updateServiceRequestStatus(
@@ -233,7 +234,7 @@ public class ServiceRequestController {
     }
 
     @GetMapping("/stats")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get service request statistics (Admin)", 
                description = "Admin views comprehensive statistics about service requests")
     public ResponseEntity<ApiResponse<ServiceRequestStatsDTO>> getServiceRequestStats() {

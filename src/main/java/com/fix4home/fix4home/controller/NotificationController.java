@@ -4,6 +4,7 @@ import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.dto.notification.*;
 import com.fix4home.fix4home.model.entity.User;
 import com.fix4home.fix4home.repository.UserRepository;
+import com.fix4home.fix4home.security.SecurityConstants;
 import com.fix4home.fix4home.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,7 +43,7 @@ public class NotificationController {
     // ==================== USER NOTIFICATION OPERATIONS ====================
 
     @GetMapping("/my")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Get my notifications")
     public ResponseEntity<ApiResponse<Page<NotificationDTO>>> getMyNotifications(
             @RequestParam(defaultValue = "0") int page,
@@ -57,7 +58,7 @@ public class NotificationController {
     }
 
     @GetMapping("/{notificationId}")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Get notification by ID")
     public ResponseEntity<ApiResponse<NotificationDTO>> getNotificationById(@PathVariable Long notificationId) {
         Long userId = getCurrentUserId();
@@ -66,7 +67,7 @@ public class NotificationController {
     }
 
     @GetMapping("/unread-count")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Get unread notification count")
     public ResponseEntity<ApiResponse<Long>> getUnreadCount() {
         Long userId = getCurrentUserId();
@@ -75,7 +76,7 @@ public class NotificationController {
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Search notifications")
     public ResponseEntity<ApiResponse<Page<NotificationDTO>>> searchNotifications(
             @RequestParam String keyword,
@@ -88,7 +89,7 @@ public class NotificationController {
     }
 
     @GetMapping("/recent")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Get recent notifications")
     public ResponseEntity<ApiResponse<List<NotificationDTO>>> getRecentNotifications(
             @RequestParam(defaultValue = "7") int days) {
@@ -101,7 +102,7 @@ public class NotificationController {
     // ==================== NOTIFICATION ACTIONS ====================
 
     @PutMapping("/{notificationId}/read")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Mark notification as read")
     public ResponseEntity<ApiResponse<NotificationDTO>> markAsRead(@PathVariable Long notificationId) {
         Long userId = getCurrentUserId();
@@ -110,7 +111,7 @@ public class NotificationController {
     }
 
     @PutMapping("/mark")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Mark notifications")
     public ResponseEntity<ApiResponse<Integer>> markNotifications(@Valid @RequestBody MarkNotificationRequest markRequest) {
         Long userId = getCurrentUserId();
@@ -120,7 +121,7 @@ public class NotificationController {
     }
 
     @PutMapping("/mark-all-read")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Mark all as read")
     public ResponseEntity<ApiResponse<Integer>> markAllAsRead() {
         Long userId = getCurrentUserId();
@@ -129,7 +130,7 @@ public class NotificationController {
     }
 
     @DeleteMapping("/{notificationId}")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Delete notification")
     public ResponseEntity<ApiResponse<Void>> deleteNotification(@PathVariable Long notificationId) {
         Long userId = getCurrentUserId();
@@ -138,7 +139,7 @@ public class NotificationController {
     }
 
     @DeleteMapping("/read")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Delete read notifications")
     public ResponseEntity<ApiResponse<Integer>> deleteReadNotifications() {
         Long userId = getCurrentUserId();
@@ -149,7 +150,7 @@ public class NotificationController {
     // ==================== STATISTICS ====================
 
     @GetMapping("/stats")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('TECHNICIAN') or hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ANY_ROLE)
     @Operation(summary = "Get notification statistics")
     public ResponseEntity<ApiResponse<NotificationStatsDTO>> getNotificationStats() {
         Long userId = getCurrentUserId();
@@ -160,7 +161,7 @@ public class NotificationController {
     // ==================== ADMIN OPERATIONS ====================
 
     @PostMapping("/create")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Create notification")
     public ResponseEntity<ApiResponse<NotificationDTO>> createNotification(@Valid @RequestBody CreateNotificationRequest request) {
         NotificationDTO notification = notificationService.createNotification(request);
@@ -169,7 +170,7 @@ public class NotificationController {
     }
 
     @PostMapping("/bulk")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Create bulk notifications")
     public ResponseEntity<ApiResponse<List<NotificationDTO>>> createBulkNotifications(@Valid @RequestBody CreateNotificationRequest request) {
         List<NotificationDTO> notifications = notificationService.createBulkNotifications(request);
@@ -179,7 +180,7 @@ public class NotificationController {
     }
 
     @GetMapping("/admin/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get all notifications")
     public ResponseEntity<ApiResponse<Page<NotificationDTO>>> getAllNotifications(
             @RequestParam(defaultValue = "0") int page,
@@ -192,7 +193,7 @@ public class NotificationController {
     }
 
     @GetMapping("/admin/stats")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get system notification statistics")
     public ResponseEntity<ApiResponse<NotificationStatsDTO>> getSystemNotificationStats() {
         NotificationStatsDTO stats = notificationService.getSystemNotificationStats();
@@ -200,7 +201,7 @@ public class NotificationController {
     }
 
     @DeleteMapping("/admin/cleanup/{daysOld}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Cleanup old notifications")
     public ResponseEntity<ApiResponse<Integer>> cleanupOldNotifications(@PathVariable int daysOld) {
         int deletedCount = notificationService.cleanupOldNotifications(daysOld);

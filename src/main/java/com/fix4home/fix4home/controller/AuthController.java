@@ -5,6 +5,7 @@ import com.fix4home.fix4home.model.dto.auth.LoginRequest;
 import com.fix4home.fix4home.model.dto.auth.RegisterRequest;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.service.AuthService;
+import com.fix4home.fix4home.security.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

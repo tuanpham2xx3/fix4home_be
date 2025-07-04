@@ -3,6 +3,7 @@ package com.fix4home.fix4home.controller;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.dto.technician.*;
 import com.fix4home.fix4home.service.TechnicianService;
+import com.fix4home.fix4home.security.SecurityConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -81,7 +82,7 @@ public class TechnicianController {
     // ==================== TECHNICIAN SELF-MANAGEMENT ENDPOINTS ====================
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Get my profile", description = "Get current technician's profile")
     public ResponseEntity<ApiResponse<TechnicianProfileDTO>> getMyProfile() {
         log.info("Request to get current technician's profile");
@@ -90,7 +91,7 @@ public class TechnicianController {
     }
 
     @PutMapping("/me")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Update my profile", description = "Update current technician's profile")
     public ResponseEntity<ApiResponse<TechnicianProfileDTO>> updateMyProfile(
             @Valid @RequestBody UpdateTechnicianProfileRequest request) {
@@ -100,7 +101,7 @@ public class TechnicianController {
     }
 
     @GetMapping("/me/skills")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Get my skills", description = "Get current technician's skills")
     public ResponseEntity<ApiResponse<List<SkillDTO>>> getMySkills() {
         log.info("Request to get current technician's skills");
@@ -109,7 +110,7 @@ public class TechnicianController {
     }
 
     @PutMapping("/me/skills")
-    @PreAuthorize("hasRole('TECHNICIAN')")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
     @Operation(summary = "Update my skills", description = "Assign skills to current technician")
     public ResponseEntity<ApiResponse<List<SkillDTO>>> updateMySkills(
             @Valid @RequestBody AssignSkillsRequest request) {
@@ -121,7 +122,7 @@ public class TechnicianController {
     // ==================== ADMIN TECHNICIAN MANAGEMENT ENDPOINTS ====================
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get all technicians", description = "Get all technicians (admin only)")
     public ResponseEntity<ApiResponse<List<TechnicianProfileDTO>>> getAllTechnicians() {
         log.info("Admin request to get all technicians");
@@ -130,7 +131,7 @@ public class TechnicianController {
     }
 
     @GetMapping("/paginated")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get technicians with pagination", description = "Get technicians with pagination (admin only)")
     public ResponseEntity<ApiResponse<Page<TechnicianProfileDTO>>> getTechniciansWithPagination(
             @Parameter(description = "Page number (0-based)")
@@ -147,7 +148,7 @@ public class TechnicianController {
     }
 
     @GetMapping("/pending")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Get pending technicians", description = "Get technicians pending approval (admin only)")
     public ResponseEntity<ApiResponse<List<TechnicianProfileDTO>>> getPendingTechnicians() {
         log.info("Admin request to get pending technicians");
@@ -156,7 +157,7 @@ public class TechnicianController {
     }
 
     @PutMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Update technician profile", description = "Update technician profile (admin only)")
     public ResponseEntity<ApiResponse<TechnicianProfileDTO>> updateTechnicianProfile(
             @Parameter(description = "User ID of the technician")
@@ -168,7 +169,7 @@ public class TechnicianController {
     }
 
     @PutMapping("/{userId}/skills")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Assign skills to technician", description = "Assign skills to technician (admin only)")
     public ResponseEntity<ApiResponse<List<SkillDTO>>> assignSkillsToTechnician(
             @Parameter(description = "User ID of the technician")
@@ -182,7 +183,7 @@ public class TechnicianController {
     // ==================== TECHNICIAN APPROVAL WORKFLOW ENDPOINTS ====================
 
     @PutMapping("/{userId}/approve")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Approve technician", description = "Approve technician registration (admin only)")
     public ResponseEntity<ApiResponse<TechnicianProfileDTO>> approveTechnician(
             @Parameter(description = "User ID of the technician to approve")
@@ -193,7 +194,7 @@ public class TechnicianController {
     }
 
     @PutMapping("/{userId}/reject")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Reject technician", description = "Reject technician registration (admin only)")
     public ResponseEntity<ApiResponse<TechnicianProfileDTO>> rejectTechnician(
             @Parameter(description = "User ID of the technician to reject")
@@ -224,7 +225,7 @@ public class TechnicianController {
     }
 
     @PostMapping("/skills")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Create new skill", description = "Create a new skill (admin only)")
     public ResponseEntity<ApiResponse<SkillDTO>> createSkill(
             @Valid @RequestBody CreateSkillRequest request) {
@@ -235,7 +236,7 @@ public class TechnicianController {
     }
 
     @DeleteMapping("/skills/{skillId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
     @Operation(summary = "Delete skill", description = "Delete a skill (admin only)")
     public ResponseEntity<ApiResponse<Void>> deleteSkill(
             @Parameter(description = "ID of the skill to delete")
