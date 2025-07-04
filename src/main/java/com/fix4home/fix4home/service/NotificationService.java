@@ -1,10 +1,11 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.BadRequestException;
+import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.notification.*;
 import com.fix4home.fix4home.model.entity.Notification;
 import com.fix4home.fix4home.model.entity.User;
 import com.fix4home.fix4home.model.enums.Role;
+import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.NotificationRepository;
 import com.fix4home.fix4home.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class NotificationService {
+public class NotificationService extends BaseService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -36,10 +37,15 @@ public class NotificationService {
 
     @Transactional
     public NotificationDTO createNotification(CreateNotificationRequest request) {
-        log.info("Creating notification for user ID: {}", request.getUserId());
+        logBusinessOperation("CREATE_NOTIFICATION", "userId=" + request.getUserId());
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + request.getUserId()));
+        validateRequired(request, "request");
+        validateRequired(request.getUserId(), "userId");
+        validateRequired(request.getTitle(), "title");
+        validateRequired(request.getMessage(), "message");
+
+        User user = findUserById(request.getUserId());
 
         Notification notification = Notification.builder()
                 .user(user)
@@ -49,15 +55,19 @@ public class NotificationService {
                 .build();
 
         Notification savedNotification = notificationRepository.save(notification);
-        log.info("Notification created successfully with ID: {}", savedNotification.getId());
 
         return convertToDTO(savedNotification);
     }
 
     @Transactional
     public List<NotificationDTO> createBulkNotifications(CreateNotificationRequest request) {
-        log.info("Creating bulk notifications for {} users", 
-                 request.getUserIds() != null ? request.getUserIds().size() : "role-based");
+        logBusinessOperation("CREATE_BULK_NOTIFICATIONS", 
+            "userCount=" + (request.getUserIds() != null ? request.getUserIds().size() : "role-based"));
+        requireRole(Role.ADMIN);
+
+        validateRequired(request, "request");
+        validateRequired(request.getTitle(), "title");
+        validateRequired(request.getMessage(), "message");
 
         List<User> targetUsers;
 
@@ -65,14 +75,14 @@ public class NotificationService {
             // Send to specific users
             targetUsers = userRepository.findAllById(request.getUserIds());
             if (targetUsers.size() != request.getUserIds().size()) {
-                throw new BadRequestException("Some user IDs not found");
+                throw new BusinessValidationException("Some user IDs not found");
             }
         } else if (request.getTargetRole() != null) {
             // Send to all users of specific role
             Role role = Role.valueOf(request.getTargetRole().toUpperCase());
             targetUsers = userRepository.findByRole(role);
         } else {
-            throw new BadRequestException("Either userIds or targetRole must be specified for bulk notifications");
+            throw new BusinessValidationException("Either userIds or targetRole must be specified for bulk notifications");
         }
 
         List<Notification> notifications = targetUsers.stream()
@@ -85,7 +95,6 @@ public class NotificationService {
                 .collect(Collectors.toList());
 
         List<Notification> savedNotifications = notificationRepository.saveAll(notifications);
-        log.info("Bulk notifications created successfully: {} notifications", savedNotifications.size());
 
         return savedNotifications.stream()
                 .map(this::convertToDTO)
@@ -96,10 +105,13 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public Page<NotificationDTO> getUserNotifications(Long userId, int page, int size, String sortBy, String sortDir, Boolean isRead) {
-        log.info("Fetching notifications for user ID: {} - page: {}, size: {}, read: {}", userId, page, size, isRead);
+        logBusinessOperation("GET_USER_NOTIFICATIONS", "userId=" + userId, "isRead=" + isRead);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
+
+        User user = findUserById(userId);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -118,14 +130,16 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public NotificationDTO getNotificationById(Long notificationId, Long userId) {
-        log.info("Fetching notification ID: {} for user ID: {}", notificationId, userId);
+        logBusinessOperation("GET_NOTIFICATION", "notificationId=" + notificationId, "userId=" + userId);
 
-        Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new BadRequestException("Notification not found with id: " + notificationId));
+        validatePositiveId(notificationId, "notificationId");
+        validatePositiveId(userId, "userId");
+
+        Notification notification = findNotificationById(notificationId);
 
         // Check ownership
         if (!notification.getUser().getId().equals(userId)) {
-            throw new BadRequestException("Access denied: Notification does not belong to the user");
+            throw new BusinessValidationException("Access denied: Notification does not belong to the user");
         }
 
         return convertToDTO(notification);
@@ -133,10 +147,13 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public Page<NotificationDTO> searchNotifications(Long userId, String keyword, int page, int size) {
-        log.info("Searching notifications for user ID: {} with keyword: {}", userId, keyword);
+        logBusinessOperation("SEARCH_NOTIFICATIONS", "userId=" + userId, "keyword=" + keyword);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        validateRequired(keyword, "keyword");
+        validatePaginationParams(page, size);
+
+        User user = findUserById(userId);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         
@@ -147,10 +164,12 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<NotificationDTO> getRecentNotifications(Long userId, int days) {
-        log.info("Fetching recent notifications for user ID: {} - last {} days", userId, days);
+        logBusinessOperation("GET_RECENT_NOTIFICATIONS", "userId=" + userId, "days=" + days);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        validatePositive(days, "days");
+
+        User user = findUserById(userId);
 
         LocalDateTime sinceDate = LocalDateTime.now().minusDays(days);
         List<Notification> notifications = notificationRepository.findRecentByUser(user, sinceDate);
@@ -164,37 +183,39 @@ public class NotificationService {
 
     @Transactional
     public NotificationDTO markAsRead(Long notificationId, Long userId) {
-        log.info("Marking notification ID: {} as read for user ID: {}", notificationId, userId);
+        logBusinessOperation("MARK_NOTIFICATION_READ", "notificationId=" + notificationId, "userId=" + userId);
 
-        Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new BadRequestException("Notification not found with id: " + notificationId));
+        validatePositiveId(notificationId, "notificationId");
+        validatePositiveId(userId, "userId");
+
+        Notification notification = findNotificationById(notificationId);
 
         // Check ownership
         if (!notification.getUser().getId().equals(userId)) {
-            throw new BadRequestException("Access denied: Notification does not belong to the user");
+            throw new BusinessValidationException("Access denied: Notification does not belong to the user");
         }
 
         notification.setIsRead(true);
         Notification updatedNotification = notificationRepository.save(notification);
 
-        log.info("Notification ID: {} marked as read successfully", notificationId);
         return convertToDTO(updatedNotification);
     }
 
     @Transactional
     public int markNotifications(Long userId, MarkNotificationRequest request) {
-        log.info("Processing mark notification request for user ID: {}", userId);
+        logBusinessOperation("MARK_NOTIFICATIONS", "userId=" + userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        validateRequired(request, "request");
+        validateRequired(request.getIsRead(), "isRead");
+
+        User user = findUserById(userId);
 
         int updatedCount = 0;
 
         if (request.getMarkAll() != null && request.getMarkAll()) {
             // Mark all notifications for user
             updatedCount = notificationRepository.updateAllReadStatusByUser(user, request.getIsRead());
-            log.info("Marked all notifications for user ID: {} as {}: {} notifications updated", 
-                     userId, request.getIsRead() ? "read" : "unread", updatedCount);
         } else if (request.getNotificationIds() != null && !request.getNotificationIds().isEmpty()) {
             // Mark specific notifications (with ownership validation)
             List<Notification> notifications = notificationRepository.findAllById(request.getNotificationIds());
@@ -202,27 +223,22 @@ public class NotificationService {
             // Validate ownership
             for (Notification notification : notifications) {
                 if (!notification.getUser().getId().equals(userId)) {
-                    throw new BadRequestException("Access denied: One or more notifications do not belong to the user");
+                    throw new BusinessValidationException("Access denied: One or more notifications do not belong to the user");
                 }
             }
             
             updatedCount = notificationRepository.updateMultipleReadStatus(request.getNotificationIds(), request.getIsRead());
-            log.info("Marked {} notifications as {} for user ID: {}", 
-                     updatedCount, request.getIsRead() ? "read" : "unread", userId);
         } else if (request.getNotificationId() != null) {
             // Mark single notification
-            Notification notification = notificationRepository.findById(request.getNotificationId())
-                    .orElseThrow(() -> new BadRequestException("Notification not found with id: " + request.getNotificationId()));
+            Notification notification = findNotificationById(request.getNotificationId());
             
             if (!notification.getUser().getId().equals(userId)) {
-                throw new BadRequestException("Access denied: Notification does not belong to the user");
+                throw new BusinessValidationException("Access denied: Notification does not belong to the user");
             }
             
             updatedCount = notificationRepository.updateReadStatus(request.getNotificationId(), request.getIsRead());
-            log.info("Marked notification ID: {} as {} for user ID: {}", 
-                     request.getNotificationId(), request.getIsRead() ? "read" : "unread", userId);
         } else {
-            throw new BadRequestException("Either notificationId, notificationIds, or markAll must be specified");
+            throw new BusinessValidationException("Either notificationId, notificationIds, or markAll must be specified");
         }
 
         return updatedCount;
@@ -230,13 +246,13 @@ public class NotificationService {
 
     @Transactional
     public int markAllAsRead(Long userId) {
-        log.info("Marking all notifications as read for user ID: {}", userId);
+        logBusinessOperation("MARK_ALL_NOTIFICATIONS_READ", "userId=" + userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+
+        User user = findUserById(userId);
 
         int updatedCount = notificationRepository.updateAllReadStatusByUser(user, true);
-        log.info("Marked all notifications as read for user ID: {}: {} notifications updated", userId, updatedCount);
 
         return updatedCount;
     }
@@ -245,29 +261,30 @@ public class NotificationService {
 
     @Transactional
     public void deleteNotification(Long notificationId, Long userId) {
-        log.info("Deleting notification ID: {} for user ID: {}", notificationId, userId);
+        logBusinessOperation("DELETE_NOTIFICATION", "notificationId=" + notificationId, "userId=" + userId);
 
-        Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new BadRequestException("Notification not found with id: " + notificationId));
+        validatePositiveId(notificationId, "notificationId");
+        validatePositiveId(userId, "userId");
+
+        Notification notification = findNotificationById(notificationId);
 
         // Check ownership
         if (!notification.getUser().getId().equals(userId)) {
-            throw new BadRequestException("Access denied: Notification does not belong to the user");
+            throw new BusinessValidationException("Access denied: Notification does not belong to the user");
         }
 
         notificationRepository.delete(notification);
-        log.info("Notification ID: {} deleted successfully", notificationId);
     }
 
     @Transactional
     public int deleteReadNotifications(Long userId) {
-        log.info("Deleting read notifications for user ID: {}", userId);
+        logBusinessOperation("DELETE_READ_NOTIFICATIONS", "userId=" + userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+
+        User user = findUserById(userId);
 
         int deletedCount = notificationRepository.deleteReadNotificationsByUser(user);
-        log.info("Deleted {} read notifications for user ID: {}", deletedCount, userId);
 
         return deletedCount;
     }
@@ -276,10 +293,11 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public NotificationStatsDTO getUserNotificationStats(Long userId) {
-        log.info("Generating notification statistics for user ID: {}", userId);
+        logBusinessOperation("GET_USER_NOTIFICATION_STATS", "userId=" + userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+
+        User user = findUserById(userId);
 
         long totalNotifications = notificationRepository.countByUser(user);
         long unreadNotifications = notificationRepository.countByUserAndIsRead(user, false);
@@ -331,7 +349,8 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public NotificationStatsDTO getSystemNotificationStats() {
-        log.info("Generating system-wide notification statistics");
+        logBusinessOperation("GET_SYSTEM_NOTIFICATION_STATS");
+        requireRole(Role.ADMIN);
 
         long totalSystemNotifications = notificationRepository.countTotalNotifications();
         long totalUnread = notificationRepository.countUnreadNotifications();
@@ -345,7 +364,7 @@ public class NotificationService {
         NotificationStatsDTO.SystemNotificationStats systemStats = NotificationStatsDTO.SystemNotificationStats.builder()
                 .totalSystemNotifications(totalSystemNotifications)
                 .totalUsers(totalUsers)
-                .activeUsers(userRepository.findByStatus(com.fix4home.fix4home.model.enums.UserStatus.ACTIVE).size())
+                .activeUsers(userRepository.findByStatus(UserStatus.ACTIVE).size())
                 .averageNotificationsPerUser(averageNotificationsPerUser)
                 .systemReadPercentage(systemReadPercentage)
                 .generatedAt(LocalDateTime.now())
@@ -367,10 +386,11 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public long getUnreadCount(Long userId) {
-        log.info("Getting unread notification count for user ID: {}", userId);
+        logBusinessOperation("GET_UNREAD_COUNT", "userId=" + userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+
+        User user = findUserById(userId);
 
         return notificationRepository.countByUserAndIsRead(user, false);
     }
@@ -379,7 +399,11 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public Page<NotificationDTO> getAllNotifications(int page, int size, String sortBy, String sortDir) {
-        log.info("Admin fetching all notifications - page: {}, size: {}", page, size);
+        logBusinessOperation("GET_ALL_NOTIFICATIONS");
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -392,16 +416,23 @@ public class NotificationService {
 
     @Transactional
     public int cleanupOldNotifications(int daysOld) {
-        log.info("Admin cleaning up notifications older than {} days", daysOld);
+        logBusinessOperation("CLEANUP_OLD_NOTIFICATIONS", "daysOld=" + daysOld);
+        requireRole(Role.ADMIN);
+
+        validatePositive(daysOld, "daysOld");
 
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(daysOld);
         int deletedCount = notificationRepository.deleteOldNotifications(cutoffDate);
         
-        log.info("Cleaned up {} old notifications", deletedCount);
         return deletedCount;
     }
 
     // ==================== HELPER METHODS ====================
+
+    private Notification findNotificationById(Long notificationId) {
+        return notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new BusinessValidationException("Notification not found with id: " + notificationId));
+    }
 
     private NotificationDTO convertToDTO(Notification notification) {
         String timeAgo = calculateTimeAgo(notification.getCreatedAt());

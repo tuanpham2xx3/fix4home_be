@@ -1,7 +1,6 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.BadRequestException;
-import com.fix4home.fix4home.exception.ResourceAlreadyExistsException;
+import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.technician.*;
 import com.fix4home.fix4home.model.entity.*;
 import com.fix4home.fix4home.model.enums.Role;
@@ -13,8 +12,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -24,7 +21,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TechnicianService {
+public class TechnicianService extends BaseService {
 
     private final UserRepository userRepository;
     private final TechnicianProfileRepository technicianProfileRepository;
@@ -35,54 +32,37 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public TechnicianProfileDTO getTechnicianProfile(Long userId) {
-        log.info("Fetching technician profile for user ID: {}", userId);
+        logBusinessOperation("GET_TECHNICIAN_PROFILE", "userId=" + userId);
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
-
-        if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("User is not a technician");
-        }
-
-        TechnicianProfile profile = technicianProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Technician profile not found for user: " + userId));
+        validatePositiveId(userId, "userId");
+        User user = findTechnicianById(userId);
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
 
         return convertToTechnicianProfileDTO(user, profile);
     }
 
     @Transactional(readOnly = true)
     public TechnicianProfileDTO getMyProfile() {
-        log.info("Fetching profile for current authenticated technician");
-        
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
+        logBusinessOperation("GET_MY_PROFILE");
+        requireRole(Role.TECHNICIAN);
 
-        if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("Current user is not a technician");
-        }
-
-        TechnicianProfile profile = technicianProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Technician profile not found"));
+        User user = getCurrentUser();
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
 
         return convertToTechnicianProfileDTO(user, profile);
     }
 
     @Transactional
     public TechnicianProfileDTO updateTechnicianProfile(Long userId, UpdateTechnicianProfileRequest request) {
-        log.info("Updating technician profile for user ID: {}", userId);
+        logBusinessOperation("UPDATE_TECHNICIAN_PROFILE", "userId=" + userId);
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        validateRequired(request, "request");
 
-        if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("User is not a technician");
-        }
-
-        TechnicianProfile profile = technicianProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Technician profile not found for user: " + userId));
+        User user = findTechnicianById(userId);
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
 
         // Update User fields
         if (StringUtils.hasText(request.getPhoneNumber())) {
@@ -109,26 +89,24 @@ public class TechnicianService {
         User savedUser = userRepository.save(user);
         TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
 
-        log.info("Technician profile updated successfully for user ID: {}", userId);
         return convertToTechnicianProfileDTO(savedUser, savedProfile);
     }
 
     @Transactional
     public TechnicianProfileDTO updateMyProfile(UpdateTechnicianProfileRequest request) {
-        log.info("Updating profile for current authenticated technician");
-        
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
+        logBusinessOperation("UPDATE_MY_PROFILE");
+        requireRole(Role.TECHNICIAN);
+
+        validateRequired(request, "request");
+        User user = getCurrentUser();
 
         return updateTechnicianProfile(user.getId(), request);
     }
 
     @Transactional(readOnly = true)
     public List<TechnicianProfileDTO> getAllTechnicians() {
-        log.info("Fetching all technicians");
+        logBusinessOperation("GET_ALL_TECHNICIANS");
+        requireRole(Role.ADMIN);
         
         List<User> technicians = userRepository.findByRole(Role.TECHNICIAN);
         return technicians.stream()
@@ -141,7 +119,7 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public List<TechnicianProfileDTO> getActiveTechnicians() {
-        log.info("Fetching active technicians");
+        logBusinessOperation("GET_ACTIVE_TECHNICIANS");
         
         List<TechnicianProfile> activeProfiles = technicianProfileRepository.findByStatus(UserStatus.ACTIVE);
         return activeProfiles.stream()
@@ -151,7 +129,8 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public List<TechnicianProfileDTO> getPendingTechnicians() {
-        log.info("Fetching pending approval technicians");
+        logBusinessOperation("GET_PENDING_TECHNICIANS");
+        requireRole(Role.ADMIN);
         
         List<TechnicianProfile> pendingProfiles = technicianProfileRepository.findByStatus(UserStatus.INACTIVE);
         return pendingProfiles.stream()
@@ -161,8 +140,11 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public Page<TechnicianProfileDTO> getAllTechniciansWithPagination(int page, int size, String sortBy, String sortDir) {
-        log.info("Fetching technicians with pagination - page: {}, size: {}, sortBy: {}, sortDir: {}", 
-                 page, size, sortBy, sortDir);
+        logBusinessOperation("GET_ALL_TECHNICIANS_PAGINATED");
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
         
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -178,7 +160,7 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public List<TechnicianProfileDTO> searchTechnicians(String keyword) {
-        log.info("Searching technicians with keyword: {}", keyword);
+        logBusinessOperation("SEARCH_TECHNICIANS", "keyword=" + keyword);
         
         if (!StringUtils.hasText(keyword)) {
             return getActiveTechnicians();
@@ -193,7 +175,9 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public List<TechnicianProfileDTO> getTechniciansByRating(Float minRating) {
-        log.info("Fetching technicians with rating >= {}", minRating);
+        logBusinessOperation("GET_TECHNICIANS_BY_RATING", "minRating=" + minRating);
+        
+        validateRequired(minRating, "minRating");
         
         List<TechnicianProfile> technicians = technicianProfileRepository.findByRatingGreaterThanEqualOrderByRatingDesc(minRating);
         return technicians.stream()
@@ -206,43 +190,31 @@ public class TechnicianService {
 
     @Transactional
     public TechnicianProfileDTO approveTechnician(Long userId) {
-        log.info("Approving technician with user ID: {}", userId);
+        logBusinessOperation("APPROVE_TECHNICIAN", "userId=" + userId);
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
-
-        if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("User is not a technician");
-        }
-
-        TechnicianProfile profile = technicianProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Technician profile not found"));
+        validatePositiveId(userId, "userId");
+        User user = findTechnicianById(userId);
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
 
         profile.setStatus(UserStatus.ACTIVE);
         TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
 
-        log.info("Technician approved successfully with user ID: {}", userId);
         return convertToTechnicianProfileDTO(user, savedProfile);
     }
 
     @Transactional
     public TechnicianProfileDTO rejectTechnician(Long userId) {
-        log.info("Rejecting technician with user ID: {}", userId);
+        logBusinessOperation("REJECT_TECHNICIAN", "userId=" + userId);
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
-
-        if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("User is not a technician");
-        }
-
-        TechnicianProfile profile = technicianProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Technician profile not found"));
+        validatePositiveId(userId, "userId");
+        User user = findTechnicianById(userId);
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
 
         profile.setStatus(UserStatus.INACTIVE);
         TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
 
-        log.info("Technician rejected with user ID: {}", userId);
         return convertToTechnicianProfileDTO(user, savedProfile);
     }
 
@@ -250,7 +222,8 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public List<SkillDTO> getAllSkills() {
-        log.info("Fetching all skills");
+        logBusinessOperation("GET_ALL_SKILLS");
+        requireRole(Role.ADMIN);
         
         List<Skill> skills = skillRepository.findAllOrderByName();
         return skills.stream()
@@ -260,7 +233,7 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public List<SkillDTO> searchSkills(String keyword) {
-        log.info("Searching skills with keyword: {}", keyword);
+        logBusinessOperation("SEARCH_SKILLS", "keyword=" + keyword);
         
         if (!StringUtils.hasText(keyword)) {
             return getAllSkills();
@@ -274,7 +247,11 @@ public class TechnicianService {
 
     @Transactional
     public SkillDTO createSkill(CreateSkillRequest request) {
-        log.info("Creating new skill: {}", request.getName());
+        logBusinessOperation("CREATE_SKILL", "name=" + request.getName());
+        requireRole(Role.ADMIN);
+
+        validateRequired(request, "request");
+        validateRequired(request.getName(), "name");
 
         if (skillRepository.existsByName(request.getName())) {
             throw new ResourceAlreadyExistsException("Skill with name '" + request.getName() + "' already exists");
@@ -285,41 +262,33 @@ public class TechnicianService {
                 .build();
 
         Skill savedSkill = skillRepository.save(skill);
-        log.info("Skill created successfully with ID: {}", savedSkill.getId());
-        
         return convertToSkillDTO(savedSkill);
     }
 
     @Transactional
     public void deleteSkill(Long skillId) {
-        log.info("Deleting skill with ID: {}", skillId);
+        logBusinessOperation("DELETE_SKILL", "skillId=" + skillId);
+        requireRole(Role.ADMIN);
 
+        validatePositiveId(skillId, "skillId");
         if (!skillRepository.existsById(skillId)) {
-            throw new BadRequestException("Skill not found with id: " + skillId);
+            throw new SkillNotFoundException(skillId);
         }
 
         // Remove all technician-skill associations first
         technicianSkillRepository.deleteBySkillId(skillId);
         skillRepository.deleteById(skillId);
-        
-        log.info("Skill deleted successfully with ID: {}", skillId);
     }
 
     // ==================== TECHNICIAN SKILLS MANAGEMENT ====================
 
     @Transactional(readOnly = true)
     public List<SkillDTO> getTechnicianSkills(Long userId) {
-        log.info("Fetching skills for technician user ID: {}", userId);
+        logBusinessOperation("GET_TECHNICIAN_SKILLS", "userId=" + userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
-
-        if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("User is not a technician");
-        }
-
-        TechnicianProfile profile = technicianProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Technician profile not found"));
+        validatePositiveId(userId, "userId");
+        User user = findTechnicianById(userId);
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
 
         List<TechnicianSkill> technicianSkills = technicianSkillRepository.findByTechnicianProfile(profile);
         return technicianSkills.stream()
@@ -329,38 +298,32 @@ public class TechnicianService {
 
     @Transactional(readOnly = true)
     public List<SkillDTO> getMySkills() {
-        log.info("Fetching skills for current authenticated technician");
-        
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
+        logBusinessOperation("GET_MY_SKILLS");
+        requireRole(Role.TECHNICIAN);
 
+        User user = getCurrentUser();
         return getTechnicianSkills(user.getId());
     }
 
     @Transactional
     public List<SkillDTO> assignSkillsToTechnician(Long userId, AssignSkillsRequest request) {
-        log.info("Assigning skills to technician user ID: {}", userId);
+        logBusinessOperation("ASSIGN_SKILLS_TO_TECHNICIAN", "userId=" + userId);
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        validateRequired(request, "request");
+        validateRequired(request.getSkillIds(), "skillIds");
 
-        if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("User is not a technician");
-        }
-
-        TechnicianProfile profile = technicianProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Technician profile not found"));
+        User user = findTechnicianById(userId);
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
 
         // Remove existing skills
         technicianSkillRepository.deleteByTechnicianProfileId(profile.getId());
 
         // Add new skills
         for (Long skillId : request.getSkillIds()) {
-            Skill skill = skillRepository.findById(skillId)
-                    .orElseThrow(() -> new BadRequestException("Skill not found with id: " + skillId));
+            validatePositiveId(skillId, "skillId");
+            Skill skill = findSkillById(skillId);
 
             TechnicianSkill technicianSkill = TechnicianSkill.builder()
                     .technicianProfile(profile)
@@ -370,24 +333,40 @@ public class TechnicianService {
             technicianSkillRepository.save(technicianSkill);
         }
 
-        log.info("Skills assigned successfully to technician user ID: {}", userId);
         return getTechnicianSkills(userId);
     }
 
     @Transactional
     public List<SkillDTO> assignSkillsToMyself(AssignSkillsRequest request) {
-        log.info("Assigning skills to current authenticated technician");
-        
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
+        logBusinessOperation("ASSIGN_SKILLS_TO_MYSELF");
+        requireRole(Role.TECHNICIAN);
 
+        validateRequired(request, "request");
+        validateRequired(request.getSkillIds(), "skillIds");
+
+        User user = getCurrentUser();
         return assignSkillsToTechnician(user.getId(), request);
     }
 
-    // ==================== UTILITY METHODS ====================
+    // ==================== HELPER METHODS ====================
+
+    private User findTechnicianById(Long userId) {
+        User user = findUserById(userId);
+        if (user.getRole() != Role.TECHNICIAN) {
+            throw new BusinessValidationException("User is not a technician");
+        }
+        return user;
+    }
+
+    private TechnicianProfile findTechnicianProfileByUser(User user) {
+        return technicianProfileRepository.findByUser(user)
+                .orElseThrow(() -> new TechnicianProfileNotFoundException(user.getId()));
+    }
+
+    private Skill findSkillById(Long skillId) {
+        return skillRepository.findById(skillId)
+                .orElseThrow(() -> new SkillNotFoundException(skillId));
+    }
 
     private TechnicianProfileDTO convertToTechnicianProfileDTO(User user, TechnicianProfile profile) {
         TechnicianProfileDTO.TechnicianProfileDTOBuilder builder = TechnicianProfileDTO.builder()

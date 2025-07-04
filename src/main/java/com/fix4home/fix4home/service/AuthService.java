@@ -1,7 +1,6 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.BadRequestException;
-import com.fix4home.fix4home.exception.ResourceAlreadyExistsException;
+import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.auth.AuthResponse;
 import com.fix4home.fix4home.model.dto.auth.LoginRequest;
 import com.fix4home.fix4home.model.dto.auth.RegisterRequest;
@@ -24,10 +23,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import static com.fix4home.fix4home.service.ServiceValidationUtils.*;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class AuthService {
+public class AuthService extends BaseService {
 
     private final UserRepository userRepository;
     private final CustomerProfileRepository customerProfileRepository;
@@ -38,15 +39,24 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        log.info("Registering user with username: {}", request.getUsername());
+        logBusinessOperation("REGISTER_USER", "username=" + request.getUsername(), "role=" + request.getRole());
+
+        // Validate request
+        validateRequired(request, "request");
+        validateRequired(request.getUsername(), "username");
+        validateRequired(request.getPassword(), "password");
+        validateRequired(request.getEmail(), "email");
+        validateRequired(request.getPhoneNumber(), "phoneNumber");
+        validateRequired(request.getRole(), "role");
+        validateRequired(request.getFullName(), "fullName");
 
         // Validate unique constraints
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new ResourceAlreadyExistsException("Username is already taken!");
+            throw new UserAlreadyExistsException("username", request.getUsername());
         }
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ResourceAlreadyExistsException("Email is already in use!");
+            throw new UserAlreadyExistsException("email", request.getEmail());
         }
 
         // Create user
@@ -71,35 +81,42 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        log.info("Attempting login for user: {}", request.getUsernameOrEmail());
+        logBusinessOperation("LOGIN_USER", "usernameOrEmail=" + request.getUsernameOrEmail());
+
+        // Validate request
+        validateRequired(request, "request");
+        validateRequired(request.getUsernameOrEmail(), "usernameOrEmail");
+        validateRequired(request.getPassword(), "password");
 
         // Authenticate user
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getUsernameOrEmail(),
-                        request.getPassword()
-                )
-        );
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getUsernameOrEmail(),
+                            request.getPassword()
+                    )
+            );
+        } catch (Exception e) {
+            throw new InvalidCredentialsException();
+        }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         // Get user details
-        User user = userRepository.findByUsername(request.getUsernameOrEmail())
-                .orElseGet(() -> userRepository.findByEmail(request.getUsernameOrEmail())
-                        .orElseThrow(() -> new BadRequestException("Invalid credentials")));
+        User user = findUserByUsernameOrEmail(request.getUsernameOrEmail());
 
         // Check if user is active
         if (user.getStatus() == UserStatus.INACTIVE) {
-            throw new BadRequestException("Account is inactive. Please contact admin.");
+            throw AccountNotActiveException.inactive();
         }
 
         // For technician, check if approved
         if (user.getRole() == Role.TECHNICIAN) {
-            TechnicianProfile techProfile = technicianProfileRepository.findByUser(user)
-                    .orElseThrow(() -> new BadRequestException("Technician profile not found"));
+            TechnicianProfile techProfile = findTechnicianProfileByUser(user);
             
             if (techProfile.getStatus() == UserStatus.INACTIVE) {
-                throw new BadRequestException("Technician account is pending approval.");
+                throw AccountNotActiveException.pendingApproval();
             }
         }
 
@@ -124,6 +141,10 @@ public class AuthService {
                 customerProfileRepository.save(customerProfile);
             }
             case TECHNICIAN -> {
+                // Validate technician-specific fields
+                validateRequired(request.getSkills(), "skills");
+                validateRequired(request.getExperience(), "experience");
+
                 TechnicianProfile technicianProfile = TechnicianProfile.builder()
                         .user(user)
                         .fullName(request.getFullName())
@@ -156,13 +177,13 @@ public class AuthService {
         // Add profile information
         switch (user.getRole()) {
             case CUSTOMER -> {
-                CustomerProfile profile = customerProfileRepository.findByUser(user).orElse(null);
+                CustomerProfile profile = findCustomerProfileByUser(user);
                 if (profile != null) {
                     builder.fullName(profile.getFullName());
                 }
             }
             case TECHNICIAN -> {
-                TechnicianProfile profile = technicianProfileRepository.findByUser(user).orElse(null);
+                TechnicianProfile profile = findTechnicianProfileByUser(user);
                 if (profile != null) {
                     builder.fullName(profile.getFullName())
                            .skills(profile.getSkills())
@@ -173,5 +194,21 @@ public class AuthService {
         }
 
         return builder.build();
+    }
+
+    private User findUserByUsernameOrEmail(String usernameOrEmail) {
+        return userRepository.findByUsername(usernameOrEmail)
+                .orElseGet(() -> userRepository.findByEmail(usernameOrEmail)
+                        .orElseThrow(() -> new InvalidCredentialsException()));
+    }
+
+    private CustomerProfile findCustomerProfileByUser(User user) {
+        return customerProfileRepository.findByUser(user)
+                .orElseThrow(() -> UserNotFoundException.withMessage("Customer profile not found for user: " + user.getId()));
+    }
+
+    private TechnicianProfile findTechnicianProfileByUser(User user) {
+        return technicianProfileRepository.findByUser(user)
+                .orElseThrow(() -> new TechnicianNotFoundException(user.getId(), "technician profile"));
     }
 } 

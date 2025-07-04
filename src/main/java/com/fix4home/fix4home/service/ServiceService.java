@@ -1,11 +1,11 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.BadRequestException;
-import com.fix4home.fix4home.exception.ResourceAlreadyExistsException;
+import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.service.CreateServiceRequest;
 import com.fix4home.fix4home.model.dto.service.ServiceDTO;
 import com.fix4home.fix4home.model.dto.service.UpdateServiceRequest;
 import com.fix4home.fix4home.model.entity.Service;
+import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,13 +23,15 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class ServiceService {
+public class ServiceService extends BaseService {
 
     private final ServiceRepository serviceRepository;
 
     @Transactional(readOnly = true)
     public List<ServiceDTO> getAllServices() {
-        log.info("Fetching all services");
+        logBusinessOperation("GET_ALL_SERVICES");
+        requireRole(Role.ADMIN);
+
         List<Service> services = serviceRepository.findAll(Sort.by(Sort.Direction.ASC, "name"));
         return services.stream()
                 .map(this::convertToDTO)
@@ -38,7 +40,8 @@ public class ServiceService {
 
     @Transactional(readOnly = true)
     public List<ServiceDTO> getActiveServices() {
-        log.info("Fetching active services");
+        logBusinessOperation("GET_ACTIVE_SERVICES");
+
         List<Service> services = serviceRepository.findByStatus(UserStatus.ACTIVE);
         return services.stream()
                 .map(this::convertToDTO)
@@ -47,8 +50,11 @@ public class ServiceService {
 
     @Transactional(readOnly = true)
     public Page<ServiceDTO> getAllServicesWithPagination(int page, int size, String sortBy, String sortDir) {
-        log.info("Fetching services with pagination - page: {}, size: {}, sortBy: {}, sortDir: {}", 
-                 page, size, sortBy, sortDir);
+        logBusinessOperation("GET_ALL_SERVICES_PAGINATED");
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
         
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -61,15 +67,15 @@ public class ServiceService {
 
     @Transactional(readOnly = true)
     public ServiceDTO getServiceById(Long id) {
-        log.info("Fetching service with id: {}", id);
-        Service service = serviceRepository.findById(id)
-                .orElseThrow(() -> new BadRequestException("Service not found with id: " + id));
-        return convertToDTO(service);
+        logBusinessOperation("GET_SERVICE_BY_ID", "id=" + id);
+
+        validatePositiveId(id, "id");
+        return convertToDTO(findServiceById(id));
     }
 
     @Transactional(readOnly = true)
     public List<ServiceDTO> searchServices(String keyword) {
-        log.info("Searching services with keyword: {}", keyword);
+        logBusinessOperation("SEARCH_SERVICES", "keyword=" + keyword);
         
         if (!StringUtils.hasText(keyword)) {
             return getActiveServices();
@@ -84,7 +90,13 @@ public class ServiceService {
 
     @Transactional
     public ServiceDTO createService(CreateServiceRequest request) {
-        log.info("Creating new service: {}", request.getName());
+        logBusinessOperation("CREATE_SERVICE", "name=" + request.getName());
+        requireRole(Role.ADMIN);
+
+        validateRequired(request, "request");
+        validateRequired(request.getName(), "name");
+        validateRequired(request.getDescription(), "description");
+        validateRequired(request.getBasePrice(), "basePrice");
 
         // Check for duplicate name
         if (serviceRepository.existsByName(request.getName())) {
@@ -99,17 +111,18 @@ public class ServiceService {
                 .build();
 
         Service savedService = serviceRepository.save(service);
-        log.info("Service created successfully with id: {}", savedService.getId());
-        
         return convertToDTO(savedService);
     }
 
     @Transactional
     public ServiceDTO updateService(Long id, UpdateServiceRequest request) {
-        log.info("Updating service with id: {}", id);
+        logBusinessOperation("UPDATE_SERVICE", "id=" + id);
+        requireRole(Role.ADMIN);
 
-        Service existingService = serviceRepository.findById(id)
-                .orElseThrow(() -> new BadRequestException("Service not found with id: " + id));
+        validatePositiveId(id, "id");
+        validateRequired(request, "request");
+
+        Service existingService = findServiceById(id);
 
         // Check for duplicate name if name is being updated
         if (StringUtils.hasText(request.getName()) && 
@@ -136,43 +149,42 @@ public class ServiceService {
         }
 
         Service updatedService = serviceRepository.save(existingService);
-        log.info("Service updated successfully with id: {}", updatedService.getId());
-        
         return convertToDTO(updatedService);
     }
 
     @Transactional
     public void deleteService(Long id) {
-        log.info("Deleting service with id: {}", id);
+        logBusinessOperation("DELETE_SERVICE", "id=" + id);
+        requireRole(Role.ADMIN);
 
-        Service service = serviceRepository.findById(id)
-                .orElseThrow(() -> new BadRequestException("Service not found with id: " + id));
+        validatePositiveId(id, "id");
+        Service service = findServiceById(id);
 
         // Soft delete by setting status to INACTIVE
         service.setStatus(UserStatus.INACTIVE);
         serviceRepository.save(service);
-        
-        log.info("Service soft deleted successfully with id: {}", id);
     }
 
     @Transactional
     public void hardDeleteService(Long id) {
-        log.info("Hard deleting service with id: {}", id);
+        logBusinessOperation("HARD_DELETE_SERVICE", "id=" + id);
+        requireRole(Role.ADMIN);
 
+        validatePositiveId(id, "id");
         if (!serviceRepository.existsById(id)) {
-            throw new BadRequestException("Service not found with id: " + id);
+            throw new ServiceNotFoundException(id);
         }
 
         serviceRepository.deleteById(id);
-        log.info("Service hard deleted successfully with id: {}", id);
     }
 
     @Transactional
     public ServiceDTO toggleServiceStatus(Long id) {
-        log.info("Toggling status for service with id: {}", id);
+        logBusinessOperation("TOGGLE_SERVICE_STATUS", "id=" + id);
+        requireRole(Role.ADMIN);
 
-        Service service = serviceRepository.findById(id)
-                .orElseThrow(() -> new BadRequestException("Service not found with id: " + id));
+        validatePositiveId(id, "id");
+        Service service = findServiceById(id);
 
         UserStatus newStatus = service.getStatus() == UserStatus.ACTIVE ? 
                               UserStatus.INACTIVE : UserStatus.ACTIVE;
@@ -180,11 +192,16 @@ public class ServiceService {
         service.setStatus(newStatus);
         Service updatedService = serviceRepository.save(service);
         
-        log.info("Service status toggled to {} for id: {}", newStatus, id);
         return convertToDTO(updatedService);
     }
 
-    // Helper method to convert Entity to DTO
+    // ==================== HELPER METHODS ====================
+
+    private Service findServiceById(Long id) {
+        return serviceRepository.findById(id)
+                .orElseThrow(() -> new ServiceNotFoundException(id));
+    }
+
     private ServiceDTO convertToDTO(Service service) {
         return ServiceDTO.builder()
                 .id(service.getId())
@@ -195,7 +212,6 @@ public class ServiceService {
                 .build();
     }
 
-    // Helper method to convert DTO to Entity (if needed)
     private Service convertToEntity(ServiceDTO serviceDTO) {
         return Service.builder()
                 .id(serviceDTO.getId())

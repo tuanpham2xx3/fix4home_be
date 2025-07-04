@@ -1,10 +1,11 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.BadRequestException;
+import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.feedback.*;
 import com.fix4home.fix4home.model.entity.Feedback;
 import com.fix4home.fix4home.model.entity.ServiceRequest;
 import com.fix4home.fix4home.model.entity.User;
+import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.model.enums.ServiceRequestStatus;
 import com.fix4home.fix4home.repository.FeedbackRepository;
 import com.fix4home.fix4home.repository.ServiceRequestRepository;
@@ -23,10 +24,12 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.fix4home.fix4home.service.ServiceValidationUtils.*;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class FeedbackService {
+public class FeedbackService extends BaseService {
 
     private final FeedbackRepository feedbackRepository;
     private final ServiceRequestRepository serviceRequestRepository;
@@ -36,31 +39,37 @@ public class FeedbackService {
 
     @Transactional
     public FeedbackDTO createFeedback(CreateFeedbackRequest request, Long customerId) {
-        log.info("Creating feedback for service request ID: {} by customer ID: {}", request.getServiceRequestId(), customerId);
+        logBusinessOperation("CREATE_FEEDBACK", "customerId=" + customerId, "requestId=" + request.getServiceRequestId());
+        requireRole(Role.CUSTOMER);
 
-        ServiceRequest serviceRequest = serviceRequestRepository.findById(request.getServiceRequestId())
-                .orElseThrow(() -> new BadRequestException("Service request not found"));
+        validateRequired(request, "request");
+        validateRequired(request.getServiceRequestId(), "serviceRequestId");
+        validateRequired(request.getRating(), "rating");
+        validateRequired(request.getComment(), "comment");
+        validatePositiveId(customerId, "customerId");
+
+        ServiceRequest serviceRequest = findServiceRequestById(request.getServiceRequestId());
 
         // Validate customer ownership
         if (!serviceRequest.getCustomer().getId().equals(customerId)) {
-            throw new BadRequestException("You can only provide feedback for your own service requests");
+            throw new BusinessValidationException("You can only provide feedback for your own service requests");
         }
 
         // Validate service request status
         if (serviceRequest.getStatus() != ServiceRequestStatus.DONE) {
-            throw new BadRequestException("Feedback can only be provided for completed service requests");
+            throw new BusinessValidationException("Feedback can only be provided for completed service requests");
         }
 
         // Check if feedback already exists
         if (feedbackRepository.existsByServiceRequestId(request.getServiceRequestId())) {
-            throw new BadRequestException("Feedback already exists for this service request");
+            throw new BusinessValidationException("Feedback already exists for this service request");
         }
 
         User customer = serviceRequest.getCustomer();
         User technician = serviceRequest.getTechnician();
 
         if (technician == null) {
-            throw new BadRequestException("Cannot provide feedback for service request without assigned technician");
+            throw new BusinessValidationException("Cannot provide feedback for service request without assigned technician");
         }
 
         Feedback feedback = Feedback.builder()
@@ -72,14 +81,18 @@ public class FeedbackService {
                 .build();
 
         Feedback savedFeedback = feedbackRepository.save(feedback);
-        log.info("Feedback created successfully with ID: {}", savedFeedback.getId());
 
         return convertToDTO(savedFeedback);
     }
 
     @Transactional(readOnly = true)
     public Page<FeedbackDTO> getCustomerFeedbacks(Long customerId, int page, int size, String sortBy, String sortDir) {
-        log.info("Fetching feedbacks for customer ID: {} - page: {}, size: {}", customerId, page, size);
+        logBusinessOperation("GET_CUSTOMER_FEEDBACKS", "customerId=" + customerId);
+        requireRole(Role.CUSTOMER);
+
+        validatePositiveId(customerId, "customerId");
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -92,13 +105,16 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public FeedbackDTO getFeedbackDetails(Long feedbackId, Long customerId) {
-        log.info("Customer {} requesting feedback details for ID: {}", customerId, feedbackId);
+        logBusinessOperation("GET_FEEDBACK_DETAILS", "feedbackId=" + feedbackId, "customerId=" + customerId);
+        requireRole(Role.CUSTOMER);
 
-        Feedback feedback = feedbackRepository.findById(feedbackId)
-                .orElseThrow(() -> new BadRequestException("Feedback not found"));
+        validatePositiveId(feedbackId, "feedbackId");
+        validatePositiveId(customerId, "customerId");
+
+        Feedback feedback = findFeedbackById(feedbackId);
 
         if (!feedback.getCustomer().getId().equals(customerId)) {
-            throw new BadRequestException("You can only view your own feedback");
+            throw new BusinessValidationException("You can only view your own feedback");
         }
 
         return convertToDTO(feedback);
@@ -108,7 +124,12 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public Page<FeedbackDTO> getTechnicianFeedbacks(Long technicianId, int page, int size, String sortBy, String sortDir) {
-        log.info("Fetching feedbacks for technician ID: {} - page: {}, size: {}", technicianId, page, size);
+        logBusinessOperation("GET_TECHNICIAN_FEEDBACKS", "technicianId=" + technicianId);
+        requireRole(Role.TECHNICIAN);
+
+        validatePositiveId(technicianId, "technicianId");
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -121,7 +142,11 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public Page<FeedbackDTO> getTechnicianUnrepliedFeedbacks(Long technicianId, int page, int size) {
-        log.info("Fetching unreplied feedbacks for technician ID: {} - page: {}, size: {}", technicianId, page, size);
+        logBusinessOperation("GET_TECHNICIAN_UNREPLIED_FEEDBACKS", "technicianId=" + technicianId);
+        requireRole(Role.TECHNICIAN);
+
+        validatePositiveId(technicianId, "technicianId");
+        validatePaginationParams(page, size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Feedback> feedbackPage = feedbackRepository.findByTechnicianIdAndReplyIsNull(technicianId, pageable);
@@ -131,29 +156,36 @@ public class FeedbackService {
 
     @Transactional
     public FeedbackDTO replyToFeedback(Long feedbackId, ReplyFeedbackRequest request, Long technicianId) {
-        log.info("Technician {} replying to feedback ID: {}", technicianId, feedbackId);
+        logBusinessOperation("REPLY_TO_FEEDBACK", "feedbackId=" + feedbackId, "technicianId=" + technicianId);
+        requireRole(Role.TECHNICIAN);
 
-        Feedback feedback = feedbackRepository.findById(feedbackId)
-                .orElseThrow(() -> new BadRequestException("Feedback not found"));
+        validatePositiveId(feedbackId, "feedbackId");
+        validatePositiveId(technicianId, "technicianId");
+        validateRequired(request, "request");
+        validateRequired(request.getReply(), "reply");
+
+        Feedback feedback = findFeedbackById(feedbackId);
 
         if (!feedback.getTechnician().getId().equals(technicianId)) {
-            throw new BadRequestException("You can only reply to feedback for your own services");
+            throw new BusinessValidationException("You can only reply to feedback for your own services");
         }
 
         if (feedback.getReply() != null) {
-            throw new BadRequestException("Feedback has already been replied to");
+            throw new BusinessValidationException("Feedback has already been replied to");
         }
 
         feedback.setReply(request.getReply());
         Feedback savedFeedback = feedbackRepository.save(feedback);
 
-        log.info("Feedback reply added successfully for feedback ID: {}", feedbackId);
         return convertToDTO(savedFeedback);
     }
 
     @Transactional(readOnly = true)
     public FeedbackStatsDTO getTechnicianFeedbackStats(Long technicianId) {
-        log.info("Generating feedback statistics for technician ID: {}", technicianId);
+        logBusinessOperation("GET_TECHNICIAN_FEEDBACK_STATS", "technicianId=" + technicianId);
+        requireRole(Role.TECHNICIAN);
+
+        validatePositiveId(technicianId, "technicianId");
 
         long totalFeedbacks = feedbackRepository.countByTechnicianId(technicianId);
         
@@ -203,7 +235,11 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public Page<FeedbackDTO> getAllFeedbacks(int page, int size, String sortBy, String sortDir) {
-        log.info("Admin fetching all feedbacks - page: {}, size: {}", page, size);
+        logBusinessOperation("GET_ALL_FEEDBACKS");
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -216,7 +252,11 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public Page<FeedbackDTO> getFeedbacksByRating(Integer rating, int page, int size) {
-        log.info("Admin fetching feedbacks by rating: {} - page: {}, size: {}", rating, page, size);
+        logBusinessOperation("GET_FEEDBACKS_BY_RATING", "rating=" + rating);
+        requireRole(Role.ADMIN);
+
+        validateRequired(rating, "rating");
+        validatePaginationParams(page, size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Feedback> feedbackPage = feedbackRepository.findByRating(rating, pageable);
@@ -226,7 +266,10 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public Page<FeedbackDTO> getUnrepliedFeedbacks(int page, int size) {
-        log.info("Admin fetching unreplied feedbacks - page: {}, size: {}", page, size);
+        logBusinessOperation("GET_UNREPLIED_FEEDBACKS");
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").ascending());
         Page<Feedback> feedbackPage = feedbackRepository.findByReplyIsNull(pageable);
@@ -236,7 +279,8 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public FeedbackStatsDTO getSystemFeedbackStats() {
-        log.info("Generating system-wide feedback statistics");
+        logBusinessOperation("GET_SYSTEM_FEEDBACK_STATS");
+        requireRole(Role.ADMIN);
 
         long totalFeedbacks = feedbackRepository.count();
         
@@ -289,7 +333,11 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public Page<FeedbackDTO> searchFeedbacks(String keyword, int page, int size) {
-        log.info("Admin searching feedbacks with keyword: {} - page: {}, size: {}", keyword, page, size);
+        logBusinessOperation("SEARCH_FEEDBACKS", "keyword=" + keyword);
+        requireRole(Role.ADMIN);
+
+        validateRequired(keyword, "keyword");
+        validatePaginationParams(page, size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Feedback> feedbackPage = feedbackRepository.searchByKeyword(keyword, pageable);
@@ -301,7 +349,12 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public Page<FeedbackDTO> getPublicFeedbacks(int page, int size, Integer minRating) {
-        log.info("Fetching public feedbacks - page: {}, size: {}, minRating: {}", page, size, minRating);
+        logBusinessOperation("GET_PUBLIC_FEEDBACKS", "minRating=" + minRating);
+
+        validatePaginationParams(page, size);
+        if (minRating != null) {
+            validateRequired(minRating, "minRating");
+        }
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Feedback> feedbackPage;
@@ -316,6 +369,16 @@ public class FeedbackService {
     }
 
     // ========== HELPER METHODS ==========
+
+    private ServiceRequest findServiceRequestById(Long requestId) {
+        return serviceRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ServiceRequestNotFoundException(requestId));
+    }
+
+    private Feedback findFeedbackById(Long feedbackId) {
+        return feedbackRepository.findById(feedbackId)
+                .orElseThrow(() -> new BusinessValidationException("Feedback not found with id: " + feedbackId));
+    }
 
     private FeedbackDTO convertToDTO(Feedback feedback) {
         String timeAgo = calculateTimeAgo(feedback.getCreatedAt());

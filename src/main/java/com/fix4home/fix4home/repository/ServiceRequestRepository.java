@@ -10,8 +10,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ServiceRequestRepository extends JpaRepository<ServiceRequest, Long> {
@@ -59,4 +61,7 @@ public interface ServiceRequestRepository extends JpaRepository<ServiceRequest, 
     
     @Query("SELECT sr FROM ServiceRequest sr JOIN FETCH sr.customer JOIN FETCH sr.service LEFT JOIN FETCH sr.technician JOIN FETCH sr.address WHERE sr.id = :id")
     ServiceRequest findByIdWithDetails(@Param("id") Long id);
+
+    @Query("SELECT AVG(sr.price) FROM ServiceRequest sr")
+    Optional<BigDecimal> findAveragePrice();
 } 

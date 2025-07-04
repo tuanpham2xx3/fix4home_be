@@ -1,11 +1,12 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.BadRequestException;
+import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.payment.*;
 import com.fix4home.fix4home.model.entity.Payment;
 import com.fix4home.fix4home.model.entity.ServiceRequest;
 import com.fix4home.fix4home.model.enums.PaymentMethod;
 import com.fix4home.fix4home.model.enums.PaymentStatus;
+import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.model.enums.ServiceRequestStatus;
 import com.fix4home.fix4home.repository.PaymentRepository;
 import com.fix4home.fix4home.repository.ServiceRequestRepository;
@@ -29,24 +30,29 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PaymentService {
+public class PaymentService extends BaseService {
 
     private final PaymentRepository paymentRepository;
     private final ServiceRequestRepository serviceRequestRepository;
 
     @Transactional
     public PaymentDTO createPayment(CreatePaymentRequest request) {
-        log.info("Creating payment for service request ID: {}", request.getServiceRequestId());
+        logBusinessOperation("CREATE_PAYMENT", "requestId=" + request.getServiceRequestId());
+        requireRole(Role.CUSTOMER);
 
-        ServiceRequest serviceRequest = serviceRequestRepository.findById(request.getServiceRequestId())
-                .orElseThrow(() -> new BadRequestException("Service request not found"));
+        validateRequired(request, "request");
+        validateRequired(request.getServiceRequestId(), "serviceRequestId");
+        validateRequired(request.getAmount(), "amount");
+        validateRequired(request.getMethod(), "method");
+
+        ServiceRequest serviceRequest = findServiceRequestById(request.getServiceRequestId());
 
         if (serviceRequest.getStatus() != ServiceRequestStatus.DONE) {
-            throw new BadRequestException("Can only create payment for completed service requests");
+            throw new BusinessValidationException("Can only create payment for completed service requests");
         }
 
         if (paymentRepository.existsByServiceRequestId(request.getServiceRequestId())) {
-            throw new BadRequestException("Payment already exists for this service request");
+            throw new BusinessValidationException("Payment already exists for this service request");
         }
 
         Payment payment = Payment.builder()
@@ -57,14 +63,18 @@ public class PaymentService {
                 .build();
 
         Payment savedPayment = paymentRepository.save(payment);
-        log.info("Payment created successfully with ID: {}", savedPayment.getId());
 
         return convertToDTO(savedPayment);
     }
 
     @Transactional(readOnly = true)
     public Page<PaymentDTO> getCustomerPayments(Long customerId, int page, int size, String sortBy, String sortDir, PaymentStatus status) {
-        log.info("Fetching payments for customer ID: {} - page: {}, size: {}, status: {}", customerId, page, size, status);
+        logBusinessOperation("GET_CUSTOMER_PAYMENTS", "customerId=" + customerId, "status=" + status);
+        requireRole(Role.CUSTOMER);
+
+        validatePositiveId(customerId, "customerId");
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -77,7 +87,12 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public Page<PaymentDTO> getTechnicianPayments(Long technicianId, int page, int size, String sortBy, String sortDir) {
-        log.info("Fetching payments for technician ID: {} - page: {}, size: {}", technicianId, page, size);
+        logBusinessOperation("GET_TECHNICIAN_PAYMENTS", "technicianId=" + technicianId);
+        requireRole(Role.TECHNICIAN);
+
+        validatePositiveId(technicianId, "technicianId");
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -90,14 +105,21 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public List<PaymentDTO> getPendingPayments(Long customerId) {
-        log.info("Fetching pending payments for customer ID: {}", customerId);
+        logBusinessOperation("GET_PENDING_PAYMENTS", "customerId=" + customerId);
+        requireRole(Role.CUSTOMER);
+
+        validatePositiveId(customerId, "customerId");
+
         List<Payment> payments = paymentRepository.findByCustomerIdAndStatus(customerId, PaymentStatus.PENDING);
         return payments.stream().map(this::convertToDTO).toList();
     }
 
     @Transactional(readOnly = true)
     public PaymentStatsDTO getCustomerPaymentStats(Long customerId) {
-        log.info("Generating payment statistics for customer ID: {}", customerId);
+        logBusinessOperation("GET_CUSTOMER_PAYMENT_STATS", "customerId=" + customerId);
+        requireRole(Role.CUSTOMER);
+
+        validatePositiveId(customerId, "customerId");
 
         long totalPayments = paymentRepository.countByCustomerId(customerId);
         BigDecimal totalSpent = paymentRepository.calculateCustomerTotalSpending(customerId);
@@ -111,7 +133,10 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public PaymentStatsDTO getTechnicianPaymentStats(Long technicianId) {
-        log.info("Generating payment statistics for technician ID: {}", technicianId);
+        logBusinessOperation("GET_TECHNICIAN_PAYMENT_STATS", "technicianId=" + technicianId);
+        requireRole(Role.TECHNICIAN);
+
+        validatePositiveId(technicianId, "technicianId");
 
         BigDecimal totalEarnings = paymentRepository.calculateTechnicianEarnings(technicianId);
 
@@ -122,7 +147,8 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public PaymentStatsDTO getSystemPaymentStats() {
-        log.info("Generating system-wide payment statistics");
+        logBusinessOperation("GET_SYSTEM_PAYMENT_STATS");
+        requireRole(Role.ADMIN);
 
         long totalPayments = paymentRepository.count();
         long pendingPayments = paymentRepository.countByStatus(PaymentStatus.PENDING);
@@ -143,7 +169,11 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public Page<PaymentDTO> getAllPayments(int page, int size, String sortBy, String sortDir) {
-        log.info("Admin fetching all payments - page: {}, size: {}", page, size);
+        logBusinessOperation("GET_ALL_PAYMENTS");
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -156,7 +186,10 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public Page<PaymentDTO> getFailedPayments(int page, int size) {
-        log.info("Admin fetching failed payments - page: {}, size: {}", page, size);
+        logBusinessOperation("GET_FAILED_PAYMENTS");
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Payment> paymentPage = paymentRepository.findByStatus(PaymentStatus.FAILED, pageable);
@@ -164,8 +197,9 @@ public class PaymentService {
         return paymentPage.map(this::convertToDTO);
     }
 
+    @Transactional(readOnly = true)
     public List<PaymentMethodDTO> getAvailablePaymentMethods() {
-        log.info("Fetching available payment methods");
+        logBusinessOperation("GET_AVAILABLE_PAYMENT_METHODS");
 
         List<PaymentMethodDTO> methods = new ArrayList<>();
 
@@ -216,6 +250,13 @@ public class PaymentService {
                 .build());
 
         return methods;
+    }
+
+    // ==================== HELPER METHODS ====================
+
+    private ServiceRequest findServiceRequestById(Long requestId) {
+        return serviceRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ServiceRequestNotFoundException(requestId));
     }
 
     private PaymentDTO convertToDTO(Payment payment) {

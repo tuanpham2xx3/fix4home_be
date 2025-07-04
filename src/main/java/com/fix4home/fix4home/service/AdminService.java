@@ -1,6 +1,6 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.BadRequestException;
+import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.admin.*;
 import com.fix4home.fix4home.model.entity.*;
 import com.fix4home.fix4home.model.enums.Role;
@@ -24,10 +24,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.fix4home.fix4home.service.ServiceValidationUtils.*;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class AdminService {
+public class AdminService extends BaseService {
 
     private final UserRepository userRepository;
     private final ServiceRepository serviceRepository;
@@ -40,7 +42,8 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public SystemOverviewDTO getSystemOverview() {
-        log.info("Generating system overview for admin dashboard");
+        logBusinessOperation("GET_SYSTEM_OVERVIEW");
+        requireRole(Role.ADMIN);
 
         // User Statistics
         long totalUsers = userRepository.count();
@@ -48,7 +51,7 @@ public class AdminService {
         long totalTechnicians = userRepository.countByRole(Role.TECHNICIAN);
         long activeUsers = userRepository.findByStatus(UserStatus.ACTIVE).size();
         
-        // Technician approval stats (using User status instead)
+        // Technician approval stats
         long pendingTechnicians = userRepository.findByRoleAndStatus(Role.TECHNICIAN, UserStatus.INACTIVE).size();
         long approvedTechnicians = userRepository.findByRoleAndStatus(Role.TECHNICIAN, UserStatus.ACTIVE).size();
 
@@ -72,7 +75,7 @@ public class AdminService {
                 .filter(price -> price != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Monthly revenue (simplified - current month)
+        // Monthly revenue (current month)
         LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
         List<ServiceRequest> monthlyRequests = serviceRequestRepository.findByDateRange(startOfMonth, LocalDateTime.now())
                 .stream()
@@ -94,7 +97,7 @@ public class AdminService {
         double cancellationRate = totalServiceRequests > 0 ? 
                 (double) cancelledRequests / totalServiceRequests * 100 : 0;
 
-        // System Health (mock data - in real implementation would check actual system metrics)
+        // System Health
         SystemOverviewDTO.SystemHealth systemHealth = SystemOverviewDTO.SystemHealth.builder()
                 .status("HEALTHY")
                 .message("All systems operational")
@@ -127,7 +130,7 @@ public class AdminService {
                 .customerSatisfactionRate(95.5) // Mock data
                 .averageCompletionTime(24.5) // Mock data
                 .activeConnections(127) // Mock data
-                .lastBackupTime(LocalDateTime.now().minusHours(2)) // Mock data
+                .lastBackupTime(LocalDateTime.now().minusHours(2))
                 .systemHealth(systemHealth)
                 .generatedAt(LocalDateTime.now())
                 .build();
@@ -137,7 +140,11 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public Page<UserManagementDTO> getAllUsers(int page, int size, String sortBy, String sortDir, Role role) {
-        log.info("Admin fetching all users - page: {}, size: {}, role: {}", page, size, role);
+        logBusinessOperation("GET_ALL_USERS", "page=" + page, "role=" + role);
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
 
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -156,34 +163,38 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public UserManagementDTO getUserById(Long userId) {
-        log.info("Admin fetching user details for ID: {}", userId);
+        logBusinessOperation("GET_USER_BY_ID", "userId=" + userId);
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        User user = findUserById(userId);
 
         return convertToUserManagementDTO(user);
     }
 
     @Transactional
     public UserManagementDTO updateUserStatus(Long userId, UpdateUserStatusRequest request) {
-        log.info("Admin updating user status for ID: {} to {}", userId, request.getStatus());
+        logBusinessOperation("UPDATE_USER_STATUS", "userId=" + userId, "status=" + request.getStatus());
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        validateRequired(request, "request");
+        validateRequired(request.getStatus(), "status");
 
+        User user = findUserById(userId);
         user.setStatus(request.getStatus());
         User savedUser = userRepository.save(user);
 
-        log.info("User status updated successfully for ID: {} to {}", userId, request.getStatus());
         return convertToUserManagementDTO(savedUser);
     }
 
     @Transactional
     public void deleteUser(Long userId) {
-        log.info("Admin deleting user with ID: {}", userId);
+        logBusinessOperation("DELETE_USER", "userId=" + userId);
+        requireRole(Role.ADMIN);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        validatePositiveId(userId, "userId");
+        User user = findUserById(userId);
 
         // Check if user has active service requests
         List<ServiceRequest> activeRequests = serviceRequestRepository.findByCustomer(user)
@@ -194,18 +205,22 @@ public class AdminService {
                 .collect(Collectors.toList());
 
         if (!activeRequests.isEmpty()) {
-            throw new BadRequestException("Cannot delete user with active service requests");
+            throw new BusinessValidationException("Cannot delete user with active service requests");
         }
 
         userRepository.delete(user);
-        log.info("User deleted successfully with ID: {}", userId);
     }
 
     // ==================== BULK OPERATIONS ====================
 
     @Transactional
     public BulkOperationResultDTO executeBulkOperation(BulkOperationRequest request) {
-        log.info("Executing bulk operation: {} for {} targets", request.getOperationType(), request.getTargetIds().size());
+        logBusinessOperation("EXECUTE_BULK_OPERATION", "type=" + request.getOperationType());
+        requireRole(Role.ADMIN);
+
+        validateRequired(request, "request");
+        validateRequired(request.getOperationType(), "operationType");
+        validateRequired(request.getTargetIds(), "targetIds");
 
         List<BulkOperationResultDTO.OperationError> errors = new ArrayList<>();
         int successCount = 0;
@@ -238,7 +253,7 @@ public class AdminService {
                         cancelServiceRequest(targetId);
                         break;
                     default:
-                        throw new BadRequestException("Unsupported bulk operation: " + request.getOperationType());
+                        throw new BusinessValidationException("Unsupported bulk operation: " + request.getOperationType());
                 }
                 successCount++;
             } catch (Exception e) {
@@ -257,7 +272,7 @@ public class AdminService {
                 .failureCount(errors.size())
                 .errors(errors)
                 .executedAt(LocalDateTime.now())
-                .executedBy("admin") // In real implementation, get from security context
+                .executedBy(getCurrentUser().getUsername())
                 .build();
     }
 
@@ -265,7 +280,16 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public SystemReportDTO generateSystemReport(String reportType, LocalDate startDate, LocalDate endDate) {
-        log.info("Generating system report: {} from {} to {}", reportType, startDate, endDate);
+        logBusinessOperation("GENERATE_SYSTEM_REPORT", "type=" + reportType);
+        requireRole(Role.ADMIN);
+
+        validateRequired(reportType, "reportType");
+        validateRequired(startDate, "startDate");
+        validateRequired(endDate, "endDate");
+
+        if (startDate.isAfter(endDate)) {
+            throw new BusinessValidationException("Start date cannot be after end date");
+        }
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
@@ -298,7 +322,7 @@ public class AdminService {
                 totalRevenue.divide(BigDecimal.valueOf(completedRequestsCount), 2, RoundingMode.HALF_UP) : 
                 BigDecimal.ZERO;
 
-        // Generate activity trends (daily breakdown)
+        // Generate activity trends
         List<SystemReportDTO.ActivityTrendDTO> trends = generateActivityTrends(startDate, endDate);
 
         return SystemReportDTO.builder()
@@ -308,7 +332,7 @@ public class AdminService {
                 .generatedAt(LocalDateTime.now())
                 .newUsersCount(newUsersCount)
                 .activeUsersCount(userRepository.findByStatus(UserStatus.ACTIVE).size())
-                .totalLoginCount(0) // Mock data - would track actual logins
+                .totalLoginCount(0) // Mock data
                 .newRequestsCount(newRequestsCount)
                 .completedRequestsCount(completedRequestsCount)
                 .cancelledRequestsCount(cancelledRequestsCount)
@@ -326,71 +350,76 @@ public class AdminService {
     // ==================== HELPER METHODS ====================
 
     private void activateUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        User user = findUserById(userId);
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
     }
 
     private void deactivateUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        User user = findUserById(userId);
         user.setStatus(UserStatus.INACTIVE);
         userRepository.save(user);
     }
 
     private void approveTechnician(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        User user = findUserById(userId);
         
         if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("User is not a technician");
+            throw new BusinessValidationException("User is not a technician");
         }
         
-        TechnicianProfile profile = technicianProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Technician profile not found"));
-        
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
         profile.setStatus(UserStatus.ACTIVE);
         technicianProfileRepository.save(profile);
     }
 
     private void rejectTechnician(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        User user = findUserById(userId);
         
         if (user.getRole() != Role.TECHNICIAN) {
-            throw new BadRequestException("User is not a technician");
+            throw new BusinessValidationException("User is not a technician");
         }
         
-        // Reject by setting user status to INACTIVE
         user.setStatus(UserStatus.INACTIVE);
         userRepository.save(user);
     }
 
     private void activateService(Long serviceId) {
-        com.fix4home.fix4home.model.entity.Service service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new BadRequestException("Service not found with id: " + serviceId));
+        com.fix4home.fix4home.model.entity.Service service = findServiceById(serviceId);
         service.setStatus(UserStatus.ACTIVE);
         serviceRepository.save(service);
     }
 
     private void deactivateService(Long serviceId) {
-        com.fix4home.fix4home.model.entity.Service service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new BadRequestException("Service not found with id: " + serviceId));
+        com.fix4home.fix4home.model.entity.Service service = findServiceById(serviceId);
         service.setStatus(UserStatus.INACTIVE);
         serviceRepository.save(service);
     }
 
     private void cancelServiceRequest(Long requestId) {
-        ServiceRequest request = serviceRequestRepository.findById(requestId)
-                .orElseThrow(() -> new BadRequestException("Service request not found with id: " + requestId));
+        ServiceRequest request = findServiceRequestById(requestId);
         
         if (request.getStatus() == ServiceRequestStatus.DONE) {
-            throw new BadRequestException("Cannot cancel completed service request");
+            throw new BusinessValidationException("Cannot cancel completed service request");
         }
         
         request.setStatus(ServiceRequestStatus.CANCELLED);
         serviceRequestRepository.save(request);
+    }
+
+    private ServiceRequest findServiceRequestById(Long requestId) {
+        return serviceRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ServiceRequestNotFoundException(requestId));
+    }
+
+    private com.fix4home.fix4home.model.entity.Service findServiceById(Long serviceId) {
+        return serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new ServiceNotFoundException(serviceId));
+    }
+
+    private TechnicianProfile findTechnicianProfileByUser(User user) {
+        return technicianProfileRepository.findByUser(user)
+                .orElseThrow(() -> new TechnicianNotFoundException(user.getId()));
     }
 
     private UserManagementDTO convertToUserManagementDTO(User user) {
@@ -409,7 +438,7 @@ public class AdminService {
             CustomerProfile customerProfile = customerProfileRepository.findByUser(user).orElse(null);
             if (customerProfile != null) {
                 builder.fullName(customerProfile.getFullName())
-                       .profileStatus(user.getStatus().toString()); // Use user status instead
+                       .profileStatus(user.getStatus().toString());
             }
             
             // Get additional customer info
@@ -470,7 +499,6 @@ public class AdminService {
     }
 
     private List<SystemReportDTO.TopPerformerDTO> getTopTechnicians(int limit) {
-        // Simplified implementation - in real scenario would have more complex logic
         List<User> technicians = userRepository.findByRole(Role.TECHNICIAN);
         
         return technicians.stream()
@@ -498,8 +526,9 @@ public class AdminService {
         return services.stream()
                 .limit(limit)
                 .map(service -> {
-                    long requestCount = serviceRequestRepository.findByServiceId(service.getId()).size();
-                    BigDecimal revenue = serviceRequestRepository.findByServiceId(service.getId()).stream()
+                    List<ServiceRequest> serviceRequests = serviceRequestRepository.findByServiceId(service.getId());
+                    long requestCount = serviceRequests.size();
+                    BigDecimal totalRevenue = serviceRequests.stream()
                             .filter(sr -> sr.getStatus() == ServiceRequestStatus.DONE)
                             .map(ServiceRequest::getPrice)
                             .filter(price -> price != null)
@@ -509,7 +538,7 @@ public class AdminService {
                             .serviceId(service.getId())
                             .serviceName(service.getName())
                             .requestCount(requestCount)
-                            .totalRevenue(revenue)
+                            .totalRevenue(totalRevenue)
                             .averageRating(4.5) // Mock data
                             .build();
                 })

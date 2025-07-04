@@ -1,6 +1,7 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.BadRequestException;
+import com.fix4home.fix4home.exception.UserNotFoundException;
+import com.fix4home.fix4home.exception.BusinessValidationException;
 import com.fix4home.fix4home.model.dto.customer.*;
 import com.fix4home.fix4home.model.entity.Address;
 import com.fix4home.fix4home.model.entity.CustomerProfile;
@@ -23,10 +24,12 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
+import static com.fix4home.fix4home.service.ServiceValidationUtils.*;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class CustomerService {
+public class CustomerService extends BaseService implements DTOConverter<CustomerProfile, CustomerProfileDTO> {
 
     private final UserRepository userRepository;
     private final CustomerProfileRepository customerProfileRepository;
@@ -36,54 +39,43 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public CustomerProfileDTO getCustomerProfile(Long userId) {
-        log.info("Fetching customer profile for user ID: {}", userId);
+        logBusinessOperation("GET_CUSTOMER_PROFILE", "userId=" + userId);
+        
+        validatePositiveId(userId, "userId");
+        User user = findUserById(userId);
+        validateUserRole(user, Role.CUSTOMER);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
-
-        if (user.getRole() != Role.CUSTOMER) {
-            throw new BadRequestException("User is not a customer");
-        }
-
-        CustomerProfile profile = customerProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Customer profile not found for user: " + userId));
-
-        return convertToCustomerProfileDTO(user, profile);
+        CustomerProfile profile = findCustomerProfile(user);
+        return convertToDTO(profile);
     }
 
     @Transactional(readOnly = true)
     public CustomerProfileDTO getMyProfile() {
-        log.info("Fetching profile for current authenticated user");
+        logBusinessOperation("GET_MY_PROFILE");
         
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
+        User currentUser = getCurrentUser();
+        requireRole(Role.CUSTOMER);
 
-        if (user.getRole() != Role.CUSTOMER) {
-            throw new BadRequestException("Current user is not a customer");
-        }
-
-        CustomerProfile profile = customerProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Customer profile not found"));
-
-        return convertToCustomerProfileDTO(user, profile);
+        CustomerProfile profile = findCustomerProfile(currentUser);
+        return convertToDTO(profile);
     }
 
     @Transactional
     public CustomerProfileDTO updateCustomerProfile(Long userId, UpdateCustomerProfileRequest request) {
-        log.info("Updating customer profile for user ID: {}", userId);
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
-
-        if (user.getRole() != Role.CUSTOMER) {
-            throw new BadRequestException("User is not a customer");
+        logBusinessOperation("UPDATE_CUSTOMER_PROFILE", "userId=" + userId);
+        
+        validatePositiveId(userId, "userId");
+        validateRequired(request, "request");
+        
+        User user = findUserById(userId);
+        validateUserRole(user, Role.CUSTOMER);
+        
+        // Admin can update any customer, customers can only update their own
+        if (!hasRole(Role.ADMIN)) {
+            requireAccessToUserResource(userId);
         }
 
-        CustomerProfile profile = customerProfileRepository.findByUser(user)
-                .orElseThrow(() -> new BadRequestException("Customer profile not found for user: " + userId));
+        CustomerProfile profile = findCustomerProfile(user);
 
         // Update User fields
         if (StringUtils.hasText(request.getPhoneNumber())) {
@@ -103,29 +95,24 @@ public class CustomerService {
             profile.setDob(request.getDob());
         }
 
-        User savedUser = userRepository.save(user);
+        userRepository.save(user);
         CustomerProfile savedProfile = customerProfileRepository.save(profile);
 
-        log.info("Customer profile updated successfully for user ID: {}", userId);
-        return convertToCustomerProfileDTO(savedUser, savedProfile);
+        return convertToDTO(savedProfile);
     }
 
     @Transactional
     public CustomerProfileDTO updateMyProfile(UpdateCustomerProfileRequest request) {
-        log.info("Updating profile for current authenticated user");
+        logBusinessOperation("UPDATE_MY_PROFILE");
         
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
-
-        return updateCustomerProfile(user.getId(), request);
+        Long currentUserId = getCurrentUserId();
+        return updateCustomerProfile(currentUserId, request);
     }
 
     @Transactional(readOnly = true)
     public List<CustomerProfileDTO> getAllCustomers() {
-        log.info("Fetching all customers");
+        logBusinessOperation("GET_ALL_CUSTOMERS");
+        requireRole(Role.ADMIN);
         
         List<User> customers = userRepository.findByRole(Role.CUSTOMER);
         return customers.stream()
@@ -138,8 +125,11 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public Page<CustomerProfileDTO> getAllCustomersWithPagination(int page, int size, String sortBy, String sortDir) {
-        log.info("Fetching customers with pagination - page: {}, size: {}, sortBy: {}, sortDir: {}", 
-                 page, size, sortBy, sortDir);
+        logBusinessOperation("GET_CUSTOMERS_PAGINATED", "page=" + page, "size=" + size, "sortBy=" + sortBy);
+        requireRole(Role.ADMIN);
+        
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
         
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
                    Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -157,10 +147,15 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public List<AddressDTO> getCustomerAddresses(Long userId) {
-        log.info("Fetching addresses for user ID: {}", userId);
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("User not found with id: " + userId));
+        logBusinessOperation("GET_CUSTOMER_ADDRESSES", "userId=" + userId);
+        
+        validatePositiveId(userId, "userId");
+        User user = findUserById(userId);
+        
+        // Admin can view any customer's addresses, customers can only view their own
+        if (!hasRole(Role.ADMIN)) {
+            requireAccessToUserResource(userId);
+        }
 
         List<Address> addresses = addressRepository.findByUser(user);
         return addresses.stream()
@@ -170,39 +165,36 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public List<AddressDTO> getMyAddresses() {
-        log.info("Fetching addresses for current authenticated user");
+        logBusinessOperation("GET_MY_ADDRESSES");
         
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
-
-        return getCustomerAddresses(user.getId());
+        Long currentUserId = getCurrentUserId();
+        return getCustomerAddresses(currentUserId);
     }
 
     @Transactional(readOnly = true)
     public AddressDTO getAddressById(Long addressId) {
-        log.info("Fetching address with ID: {}", addressId);
+        logBusinessOperation("GET_ADDRESS_BY_ID", "addressId=" + addressId);
         
-        Address address = addressRepository.findById(addressId)
-                .orElseThrow(() -> new BadRequestException("Address not found with id: " + addressId));
+        validatePositiveId(addressId, "addressId");
+        Address address = findAddressById(addressId);
+        
+        // Check access rights
+        if (!hasRole(Role.ADMIN)) {
+            requireAccessToUserResource(address.getUser().getId());
+        }
 
         return convertToAddressDTO(address);
     }
 
     @Transactional
     public AddressDTO createAddress(CreateAddressRequest request) {
-        log.info("Creating new address for current authenticated user");
+        logBusinessOperation("CREATE_ADDRESS");
         
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
+        validateRequired(request, "request");
+        User currentUser = getCurrentUser();
 
         Address address = Address.builder()
-                .user(user)
+                .user(currentUser)
                 .recipientName(request.getRecipientName())
                 .recipientPhone(request.getRecipientPhone())
                 .addressLine(request.getAddressLine())
@@ -214,30 +206,22 @@ public class CustomerService {
                 .build();
 
         Address savedAddress = addressRepository.save(address);
-        log.info("Address created successfully with ID: {}", savedAddress.getId());
-        
         return convertToAddressDTO(savedAddress);
     }
 
     @Transactional
     public AddressDTO updateAddress(Long addressId, UpdateAddressRequest request) {
-        log.info("Updating address with ID: {}", addressId);
+        logBusinessOperation("UPDATE_ADDRESS", "addressId=" + addressId);
         
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
+        validatePositiveId(addressId, "addressId");
+        validateRequired(request, "request");
         
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
+        Address address = findAddressById(addressId);
+        
+        // Check access rights (users can only update their own addresses)
+        requireAccessToUserResource(address.getUser().getId());
 
-        Address address = addressRepository.findById(addressId)
-                .orElseThrow(() -> new BadRequestException("Address not found with id: " + addressId));
-
-        // Check if current user owns this address
-        if (!address.getUser().getId().equals(currentUser.getId())) {
-            throw new BadRequestException("You can only update your own addresses");
-        }
-
-        // Update fields if provided
+        // Update fields
         if (StringUtils.hasText(request.getRecipientName())) {
             address.setRecipientName(request.getRecipientName());
         }
@@ -270,35 +254,41 @@ public class CustomerService {
             address.setLongitude(request.getLongitude());
         }
 
-        Address updatedAddress = addressRepository.save(address);
-        log.info("Address updated successfully with ID: {}", addressId);
-        
-        return convertToAddressDTO(updatedAddress);
+        Address savedAddress = addressRepository.save(address);
+        return convertToAddressDTO(savedAddress);
     }
 
     @Transactional
     public void deleteAddress(Long addressId) {
-        log.info("Deleting address with ID: {}", addressId);
+        logBusinessOperation("DELETE_ADDRESS", "addressId=" + addressId);
         
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
+        validatePositiveId(addressId, "addressId");
+        Address address = findAddressById(addressId);
         
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("Current user not found"));
-
-        Address address = addressRepository.findById(addressId)
-                .orElseThrow(() -> new BadRequestException("Address not found with id: " + addressId));
-
-        // Check if current user owns this address
-        if (!address.getUser().getId().equals(currentUser.getId())) {
-            throw new BadRequestException("You can only delete your own addresses");
-        }
+        // Check access rights (users can only delete their own addresses)
+        requireAccessToUserResource(address.getUser().getId());
 
         addressRepository.delete(address);
-        log.info("Address deleted successfully with ID: {}", addressId);
     }
 
-    // ==================== UTILITY METHODS ====================
+    // ==================== PRIVATE HELPER METHODS ====================
+
+    private CustomerProfile findCustomerProfile(User user) {
+        return customerProfileRepository.findByUser(user)
+                .orElseThrow(() -> new BusinessValidationException("Customer profile not found for user: " + user.getId()));
+    }
+
+    private Address findAddressById(Long addressId) {
+        return addressRepository.findById(addressId)
+                .orElseThrow(() -> new BusinessValidationException("Address not found with id: " + addressId));
+    }
+
+    // ==================== DTO CONVERSION METHODS ====================
+
+    @Override
+    public CustomerProfileDTO convertToDTO(CustomerProfile profile) {
+        return convertToCustomerProfileDTO(profile.getUser(), profile);
+    }
 
     private CustomerProfileDTO convertToCustomerProfileDTO(User user, CustomerProfile profile) {
         CustomerProfileDTO.CustomerProfileDTOBuilder builder = CustomerProfileDTO.builder()
@@ -312,8 +302,7 @@ public class CustomerService {
                 .updatedAt(user.getUpdatedAt());
 
         if (profile != null) {
-            builder.profileId(profile.getId())
-                   .fullName(profile.getFullName())
+            builder.fullName(profile.getFullName())
                    .gender(profile.getGender())
                    .dob(profile.getDob());
         }
