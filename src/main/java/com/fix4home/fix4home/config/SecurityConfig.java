@@ -69,44 +69,44 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/customers/**").authenticated()
                 
                 // Service Request endpoints - authenticated users only (role-based security in controller)
-                .requestMatchers("/api/service-requests/**").authenticated()
+                .requestMatchers("/api/v1/service-requests/**").authenticated()
                 
                 // Public technician endpoints (GET requests for browsing)
-                .requestMatchers(HttpMethod.GET, "/api/technicians/active").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/technicians/search").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/technicians/by-rating").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/technicians/*/skills").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/technicians/*").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/technicians/skills").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/technicians/skills/search").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/active").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/search").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/by-rating").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/*/skills").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/skills").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/skills/search").permitAll()
                 
                 // Technician self-management endpoints
-                .requestMatchers("/api/technicians/me/**").hasRole("TECHNICIAN")
+                .requestMatchers("/api/v1/technicians/me/**").hasRole("TECHNICIAN")
                 
                 // Admin technician management endpoints
-                .requestMatchers(HttpMethod.GET, "/api/technicians").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/technicians/paginated").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/technicians/pending").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/technicians/*").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/technicians/*/skills").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/technicians/*/approve").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/technicians/*/reject").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/technicians/skills").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/technicians/skills/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/paginated").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/pending").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/technicians/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/technicians/*/skills").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/technicians/*/approve").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/technicians/*/reject").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/technicians/skills").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/technicians/skills/*").hasRole("ADMIN")
                 
                 // Notification endpoints - authenticated users only (role-based security in controller)
-                .requestMatchers("/api/notifications/**").authenticated()
+                .requestMatchers("/api/v1/notifications/**").authenticated()
                 
                 // Payment endpoints
-                .requestMatchers(HttpMethod.GET, "/api/payments/methods").permitAll()
-                .requestMatchers("/api/payments/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/v1/payments/methods").permitAll()
+                .requestMatchers("/api/v1/payments/**").authenticated()
                 
                 // Feedback endpoints
-                .requestMatchers(HttpMethod.GET, "/api/feedbacks/public").permitAll()
-                .requestMatchers("/api/feedbacks/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/v1/feedbacks/public").permitAll()
+                .requestMatchers("/api/v1/feedbacks/**").authenticated()
                 
                 // Admin endpoints - all require ADMIN role
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 
                 // Role-based access
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

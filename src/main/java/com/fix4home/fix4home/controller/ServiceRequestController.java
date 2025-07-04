@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/service-requests")
+@RequestMapping("/api/v1/service-requests")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Service Request Controller", description = "Core booking workflow APIs for managing service requests")

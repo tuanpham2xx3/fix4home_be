@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/payments")
+@RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
 @Tag(name = "Payment Controller", description = "Quản lý thanh toán")
 public class PaymentController {

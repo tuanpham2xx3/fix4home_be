@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/notifications")
+@RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Notification Management", description = "APIs for managing notifications")

@@ -41,9 +41,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/test/health",
+							"raw": "{{baseUrl}}/api/v1/test/health",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "test", "health"]
+							"path": ["api", "v1", "test", "health"]
 						},
 						"description": "Check if the API server is running and healthy"
 					}
@@ -105,9 +105,9 @@
 							"raw": "{\n    \"username\": \"customer_test\",\n    \"email\": \"customer@fix4home.com\",\n    \"password\": \"SecurePass123!\",\n    \"role\": \"CUSTOMER\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/register",
+							"raw": "{{baseUrl}}/api/v1/auth/register",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "register"]
+							"path": ["api", "v1", "auth", "register"]
 						},
 						"description": "Register a new customer account"
 					}
@@ -155,9 +155,9 @@
 							"raw": "{\n    \"username\": \"technician_test\",\n    \"email\": \"technician@fix4home.com\",\n    \"password\": \"SecurePass123!\",\n    \"role\": \"TECHNICIAN\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/register",
+							"raw": "{{baseUrl}}/api/v1/auth/register",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "register"]
+							"path": ["api", "v1", "auth", "register"]
 						},
 						"description": "Register a new technician account"
 					}
@@ -205,9 +205,9 @@
 							"raw": "{\n    \"username\": \"admin_test\",\n    \"email\": \"admin@fix4home.com\",\n    \"password\": \"SecurePass123!\",\n    \"role\": \"ADMIN\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/register",
+							"raw": "{{baseUrl}}/api/v1/auth/register",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "register"]
+							"path": ["api", "v1", "auth", "register"]
 						},
 						"description": "Register a new admin account"
 					}
@@ -261,9 +261,9 @@
 							"raw": "{\n    \"username\": \"customer_test\",\n    \"password\": \"SecurePass123!\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/login",
+							"raw": "{{baseUrl}}/api/v1/auth/login",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "login"]
+							"path": ["api", "v1", "auth", "login"]
 						},
 						"description": "Login with customer credentials"
 					}
@@ -305,9 +305,9 @@
 							"raw": "{\n    \"username\": \"technician_test\",\n    \"password\": \"SecurePass123!\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/login",
+							"raw": "{{baseUrl}}/api/v1/auth/login",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "login"]
+							"path": ["api", "v1", "auth", "login"]
 						},
 						"description": "Login with technician credentials"
 					}
@@ -349,9 +349,9 @@
 							"raw": "{\n    \"username\": \"admin_test\",\n    \"password\": \"SecurePass123!\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/login",
+							"raw": "{{baseUrl}}/api/v1/auth/login",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "login"]
+							"path": ["api", "v1", "auth", "login"]
 						},
 						"description": "Login with admin credentials"
 					}
@@ -389,9 +389,9 @@
 							"raw": "{\n    \"username\": \"invalid_user\",\n    \"password\": \"wrong_password\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/login",
+							"raw": "{{baseUrl}}/api/v1/auth/login",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "login"]
+							"path": ["api", "v1", "auth", "login"]
 						},
 						"description": "Test invalid login credentials"
 					}
@@ -435,9 +435,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/services",
+							"raw": "{{baseUrl}}/api/v1/services",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "services"]
+							"path": ["api", "v1", "services"]
 						},
 						"description": "Retrieve all available services"
 					}
@@ -489,9 +489,9 @@
 							"raw": "{\n    \"name\": \"Premium Plumbing Service\",\n    \"description\": \"Professional plumbing installation and repair services with 24/7 availability\",\n    \"price\": 200.00\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/services",
+							"raw": "{{baseUrl}}/api/v1/services",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "services"]
+							"path": ["api", "v1", "services"]
 						},
 						"description": "Create a new service (Admin only)"
 					}
@@ -528,9 +528,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/services/{{serviceId}}",
+							"raw": "{{baseUrl}}/api/v1/services/{{serviceId}}",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "services", "{{serviceId}}"]
+							"path": ["api", "v1", "services", "{{serviceId}}"]
 						},
 						"description": "Get specific service details by ID"
 					}
@@ -573,9 +573,9 @@
 							"raw": "{\n    \"name\": \"Premium Plumbing & Electrical Service\",\n    \"description\": \"Comprehensive plumbing and electrical services with emergency support\",\n    \"price\": 250.00\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/services/{{serviceId}}",
+							"raw": "{{baseUrl}}/api/v1/services/{{serviceId}}",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "services", "{{serviceId}}"]
+							"path": ["api", "v1", "services", "{{serviceId}}"]
 						},
 						"description": "Update existing service (Admin only)"
 					}
@@ -608,9 +608,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/services/{{serviceId}}",
+							"raw": "{{baseUrl}}/api/v1/services/{{serviceId}}",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "services", "{{serviceId}}"]
+							"path": ["api", "v1", "services", "{{serviceId}}"]
 						},
 						"description": "Delete service (Admin only)"
 					}
@@ -654,9 +654,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/customers/profile",
+							"raw": "{{baseUrl}}/api/v1/customers/profile",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "customers", "profile"]
+							"path": ["api", "v1", "customers", "profile"]
 						},
 						"description": "Get current customer profile"
 					}
@@ -700,9 +700,9 @@
 							"raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Customer\",\n    \"phoneNumber\": \"0123456789\",\n    \"dateOfBirth\": \"1990-05-15\",\n    \"gender\": \"MALE\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/customers/profile",
+							"raw": "{{baseUrl}}/api/v1/customers/profile",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "customers", "profile"]
+							"path": ["api", "v1", "customers", "profile"]
 						},
 						"description": "Update customer profile information"
 					}
@@ -735,9 +735,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/customers/addresses",
+							"raw": "{{baseUrl}}/api/v1/customers/addresses",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "customers", "addresses"]
+							"path": ["api", "v1", "customers", "addresses"]
 						},
 						"description": "Get all customer addresses"
 					}
@@ -790,9 +790,9 @@
 							"raw": "{\n    \"street\": \"123 Main Street\",\n    \"city\": \"Ho Chi Minh City\",\n    \"state\": \"Ho Chi Minh\",\n    \"zipCode\": \"70000\",\n    \"country\": \"Vietnam\",\n    \"isDefault\": true\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/customers/addresses",
+							"raw": "{{baseUrl}}/api/v1/customers/addresses",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "customers", "addresses"]
+							"path": ["api", "v1", "customers", "addresses"]
 						},
 						"description": "Create a new customer address"
 					}
@@ -833,9 +833,9 @@
 							"raw": "{\n    \"street\": \"456 Updated Street\",\n    \"city\": \"Ho Chi Minh City\",\n    \"state\": \"Ho Chi Minh\",\n    \"zipCode\": \"70000\",\n    \"country\": \"Vietnam\",\n    \"isDefault\": true\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/customers/addresses/{{addressId}}",
+							"raw": "{{baseUrl}}/api/v1/customers/addresses/{{addressId}}",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "customers", "addresses", "{{addressId}}"]
+							"path": ["api", "v1", "customers", "addresses", "{{addressId}}"]
 						},
 						"description": "Update existing address"
 					}

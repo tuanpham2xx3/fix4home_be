@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/technicians")
+@RequestMapping("/api/v1/technicians")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Technician Management", description = "APIs for technician profile and skills management")

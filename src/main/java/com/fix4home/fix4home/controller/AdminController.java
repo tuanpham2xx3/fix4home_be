@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Admin Controller", description = "System administration APIs for managing the Fix4Home platform")

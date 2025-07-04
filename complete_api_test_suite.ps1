@@ -262,21 +262,21 @@ function Test-Technicians {
     $adminHeaders = @{ "Authorization" = "Bearer $($Global:Tokens.Admin)" }
     
     Write-TestCase "TECHNICIAN_PUBLIC" "Testing public technician endpoints"
-    Test-ApiEndpoint "GET" "/api/technicians/active" -Description "Get Active Technicians"
-    Test-ApiEndpoint "GET" "/api/technicians/search?keyword=test" -Description "Search Technicians"
-    Test-ApiEndpoint "GET" "/api/technicians/skills" -Description "Get All Skills"
+    Test-ApiEndpoint "GET" "/api/v1/technicians/active" -Description "Get Active Technicians"
+    Test-ApiEndpoint "GET" "/api/v1/technicians/search?keyword=test" -Description "Search Technicians"
+    Test-ApiEndpoint "GET" "/api/v1/technicians/skills" -Description "Get All Skills"
     
     Write-TestCase "TECHNICIAN_PROFILE" "Testing technician profile management"
-    Test-ApiEndpoint "GET" "/api/technicians/me" -Headers $technicianHeaders -Description "Get My Technician Profile"
+    Test-ApiEndpoint "GET" "/api/v1/technicians/me" -Headers $technicianHeaders -Description "Get My Technician Profile"
     
     $profileUpdate = @{
         fullName = "Updated Test Technician Suite"
         experience = "6+ years in comprehensive home repair services"
     }
-    Test-ApiEndpoint "PUT" "/api/technicians/me" $profileUpdate $technicianHeaders -Description "Update My Technician Profile"
+    Test-ApiEndpoint "PUT" "/api/v1/technicians/me" $profileUpdate $technicianHeaders -Description "Update My Technician Profile"
     
     Write-TestCase "TECHNICIAN_ADMIN" "Testing admin technician operations"
-    Test-ApiEndpoint "GET" "/api/technicians" -Headers $adminHeaders -Description "Admin Get All Technicians"
+    Test-ApiEndpoint "GET" "/api/v1/technicians" -Headers $adminHeaders -Description "Admin Get All Technicians"
 }
 
 function Test-ServiceRequests {
@@ -296,7 +296,7 @@ function Test-ServiceRequests {
             scheduledTime = "2024-12-31T10:00:00"
         }
         
-        $serviceRequestResult = Test-ApiEndpoint "POST" "/api/service-requests" $serviceRequestData $customerHeaders -Description "Create Service Request" -ExpectedStatus 201
+        $serviceRequestResult = Test-ApiEndpoint "POST" "/api/v1/service-requests" $serviceRequestData $customerHeaders -Description "Create Service Request" -ExpectedStatus 201
         if ($serviceRequestResult.Success -and $serviceRequestResult.Data) {
             $Global:EntityIds.ServiceRequestId = $serviceRequestResult.Data.data.id
             Write-Success "Service request created with ID: $($Global:EntityIds.ServiceRequestId)"
@@ -304,12 +304,12 @@ function Test-ServiceRequests {
     }
     
     Write-TestCase "SERVICE_REQUEST_WORKFLOW" "Testing service request workflow"
-    Test-ApiEndpoint "GET" "/api/service-requests/my" -Headers $customerHeaders -Description "Get My Service Requests"
-    Test-ApiEndpoint "GET" "/api/service-requests/available" -Headers $technicianHeaders -Description "Get Available Service Requests"
+    Test-ApiEndpoint "GET" "/api/v1/service-requests/my" -Headers $customerHeaders -Description "Get My Service Requests"
+    Test-ApiEndpoint "GET" "/api/v1/service-requests/available" -Headers $technicianHeaders -Description "Get Available Service Requests"
     
     Write-TestCase "SERVICE_REQUEST_ADMIN" "Testing admin service request operations"
-    Test-ApiEndpoint "GET" "/api/service-requests?page=0&size=10" -Headers $adminHeaders -Description "Admin Get All Service Requests"
-    Test-ApiEndpoint "GET" "/api/service-requests/stats" -Headers $adminHeaders -Description "Get Service Request Statistics"
+    Test-ApiEndpoint "GET" "/api/v1/service-requests?page=0&size=10" -Headers $adminHeaders -Description "Admin Get All Service Requests"
+    Test-ApiEndpoint "GET" "/api/v1/service-requests/stats" -Headers $adminHeaders -Description "Get Service Request Statistics"
 }
 
 function Test-Security {
@@ -320,7 +320,7 @@ function Test-Security {
     
     Write-TestCase "CROSS_ROLE_ACCESS" "Testing cross-role access"
     $customerHeaders = @{ "Authorization" = "Bearer $($Global:Tokens.Customer)" }
-    Test-ApiEndpoint "GET" "/api/admin/overview" -Headers $customerHeaders -Description "Customer accessing admin endpoint" -ExpectedStatus 403
+    Test-ApiEndpoint "GET" "/api/v1/admin/dashboard" -Headers $customerHeaders -Description "Customer accessing admin endpoint" -ExpectedStatus 403
     
     Write-TestCase "INVALID_DATA" "Testing input validation"
     $invalidService = @{

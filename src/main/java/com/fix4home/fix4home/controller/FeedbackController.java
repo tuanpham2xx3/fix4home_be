@@ -16,7 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/feedbacks")
+@RequestMapping("/api/v1/feedbacks")
 @RequiredArgsConstructor
 @Tag(name = "Feedback Controller", description = "Quản lý đánh giá và phản hồi")
 public class FeedbackController {
