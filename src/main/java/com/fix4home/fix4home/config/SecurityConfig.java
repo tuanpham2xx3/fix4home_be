@@ -94,6 +94,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/technicians/skills").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/technicians/skills/*").hasRole("ADMIN")
                 
+                // Admin endpoints - all require ADMIN role
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                
                 // Role-based access
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/technician/**").hasRole("TECHNICIAN")
