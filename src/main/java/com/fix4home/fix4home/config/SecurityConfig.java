@@ -3,6 +3,7 @@ package com.fix4home.fix4home.config;
 import com.fix4home.fix4home.security.CustomUserDetailsService;
 import com.fix4home.fix4home.security.JwtAuthenticationEntryPoint;
 import com.fix4home.fix4home.security.JwtAuthenticationFilter;
+import com.fix4home.fix4home.security.SecurityConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -53,30 +54,30 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/services").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/services/active").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/services/search").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/services/*").permitAll()
+                .requestMatchers(HttpMethod.GET, SecurityConstants.API_V1_SERVICES_WILDCARD).permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/services/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/services/paginated").permitAll()
                 
                 // Admin service endpoints (modification operations)
                 .requestMatchers(HttpMethod.POST, "/api/v1/services").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/v1/services/*").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/services/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, SecurityConstants.API_V1_SERVICES_WILDCARD).hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, SecurityConstants.API_V1_SERVICES_WILDCARD).hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/services/*/toggle-status").hasRole("ADMIN")
                 .requestMatchers("/api/v1/services/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/services/*/hard").hasRole("ADMIN")
                 
                 // Customer endpoints - authenticated users only (role-based security in controller)
-                .requestMatchers("/api/v1/customers/**").authenticated()
+                .requestMatchers(SecurityConstants.API_V1_CUSTOMERS).authenticated()
                 
                 // Service Request endpoints - authenticated users only (role-based security in controller)
-                .requestMatchers("/api/v1/service-requests/**").authenticated()
+                .requestMatchers(SecurityConstants.API_V1_SERVICE_REQUESTS).authenticated()
                 
                 // Public technician endpoints (GET requests for browsing)
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians/active").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians/search").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians/by-rating").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians/*/skills").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/technicians/*").permitAll()
+                .requestMatchers(HttpMethod.GET, SecurityConstants.API_V1_TECHNICIANS_WILDCARD).permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians/skills").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians/skills/search").permitAll()
                 
@@ -87,7 +88,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians/paginated").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/technicians/pending").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/v1/technicians/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, SecurityConstants.API_V1_TECHNICIANS_WILDCARD).hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/technicians/*/skills").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/technicians/*/approve").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/technicians/*/reject").hasRole("ADMIN")
@@ -95,18 +96,18 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/technicians/skills/*").hasRole("ADMIN")
                 
                 // Notification endpoints - authenticated users only (role-based security in controller)
-                .requestMatchers("/api/v1/notifications/**").authenticated()
+                .requestMatchers(SecurityConstants.API_V1_NOTIFICATIONS).authenticated()
                 
                 // Payment endpoints
                 .requestMatchers(HttpMethod.GET, "/api/v1/payments/methods").permitAll()
-                .requestMatchers("/api/v1/payments/**").authenticated()
+                .requestMatchers(SecurityConstants.API_V1_PAYMENTS).authenticated()
                 
                 // Feedback endpoints
                 .requestMatchers(HttpMethod.GET, "/api/v1/feedbacks/public").permitAll()
-                .requestMatchers("/api/v1/feedbacks/**").authenticated()
+                .requestMatchers(SecurityConstants.API_V1_FEEDBACKS).authenticated()
                 
                 // Admin endpoints - all require ADMIN role
-                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                .requestMatchers(SecurityConstants.API_V1_ADMIN).hasRole("ADMIN")
                 
                 // Role-based access
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

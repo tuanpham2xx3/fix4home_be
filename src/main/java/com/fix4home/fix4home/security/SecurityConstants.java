@@ -80,6 +80,48 @@ public final class SecurityConstants {
      */
     public static final String HEADER_AUTHORIZATION = "Authorization";
     
+    // ==================== API PATH CONSTANTS ====================
+    
+    /**
+     * API path pattern for services with wildcard
+     */
+    public static final String API_V1_SERVICES_WILDCARD = "/api/v1/services/*";
+    
+    /**
+     * API path pattern for technicians with wildcard
+     */
+    public static final String API_V1_TECHNICIANS_WILDCARD = "/api/v1/technicians/*";
+    
+    /**
+     * API path pattern for admin endpoints
+     */
+    public static final String API_V1_ADMIN = "/api/v1/admin/**";
+    
+    /**
+     * API path pattern for customer endpoints
+     */
+    public static final String API_V1_CUSTOMERS = "/api/v1/customers/**";
+    
+    /**
+     * API path pattern for service request endpoints
+     */
+    public static final String API_V1_SERVICE_REQUESTS = "/api/v1/service-requests/**";
+    
+    /**
+     * API path pattern for notification endpoints
+     */
+    public static final String API_V1_NOTIFICATIONS = "/api/v1/notifications/**";
+    
+    /**
+     * API path pattern for payment endpoints
+     */
+    public static final String API_V1_PAYMENTS = "/api/v1/payments/**";
+    
+    /**
+     * API path pattern for feedback endpoints
+     */
+    public static final String API_V1_FEEDBACKS = "/api/v1/feedbacks/**";
+    
     // ==================== HELPER METHODS ====================
     
     /**
