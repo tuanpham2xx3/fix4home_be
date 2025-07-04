@@ -94,6 +94,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/technicians/skills").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/technicians/skills/*").hasRole("ADMIN")
                 
+                // Notification endpoints - authenticated users only (role-based security in controller)
+                .requestMatchers("/api/notifications/**").authenticated()
+                
                 // Admin endpoints - all require ADMIN role
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 
