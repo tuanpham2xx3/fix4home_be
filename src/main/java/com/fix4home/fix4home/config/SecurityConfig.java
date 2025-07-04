@@ -97,6 +97,10 @@ public class SecurityConfig {
                 // Notification endpoints - authenticated users only (role-based security in controller)
                 .requestMatchers("/api/notifications/**").authenticated()
                 
+                // Payment endpoints
+                .requestMatchers(HttpMethod.GET, "/api/payments/methods").permitAll()
+                .requestMatchers("/api/payments/**").authenticated()
+                
                 // Admin endpoints - all require ADMIN role
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 
