@@ -15,7 +15,15 @@ public abstract class BaseBusinessException extends RuntimeException {
     private final String userMessage;
     private final Object details;
     
-    protected BaseBusinessException(String errorCode, String message, String userMessage, HttpStatus httpStatus) {
+    public BaseBusinessException(String message) {
+        super(message);
+        this.errorCode = "BUSINESS_ERROR";
+        this.userMessage = message;
+        this.httpStatus = HttpStatus.BAD_REQUEST;
+        this.details = null;
+    }
+    
+    public BaseBusinessException(String errorCode, String message, String userMessage, HttpStatus httpStatus) {
         this(errorCode, message, userMessage, httpStatus, null);
     }
     

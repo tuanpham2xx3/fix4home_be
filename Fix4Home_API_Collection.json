@@ -1,0 +1,1123 @@
+{
+	"info": {
+		"_postman_id": "f5a6b7c8-d9e0-4f1g-h2i3-j4k5l6m7n8o9",
+		"name": "Fix4Home API Collection",
+		"description": "Complete API collection for Fix4Home application",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Authentication",
+			"item": [
+				{
+					"name": "Register Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"customer@example.com\",\n    \"password\": \"password123\",\n    \"role\": \"CUSTOMER\",\n    \"fullName\": \"John Doe\",\n    \"phone\": \"1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Register Technician",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"tech@example.com\",\n    \"password\": \"password123\",\n    \"role\": \"TECHNICIAN\",\n    \"fullName\": \"Tech Smith\",\n    \"phone\": \"0987654321\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set(\"authToken\", jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"customer@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "auth", "logout"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Customer Management",
+			"item": [
+				{
+					"name": "Get Customer Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers", "profile"]
+						}
+					}
+				},
+				{
+					"name": "Update Customer Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fullName\": \"Updated Name\",\n    \"phone\": \"9876543210\",\n    \"gender\": \"MALE\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers", "profile"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer Addresses",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers/addresses",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers", "addresses"]
+						}
+					}
+				},
+				{
+					"name": "Add Customer Address",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"street\": \"123 Main St\",\n    \"city\": \"City\",\n    \"state\": \"State\",\n    \"postalCode\": \"12345\",\n    \"isDefault\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers/addresses",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers", "addresses"]
+						}
+					}
+				},
+				{
+					"name": "Get All Customers (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers"]
+						}
+					}
+				},
+				{
+					"name": "Update Address",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"street\": \"456 Updated St\",\n    \"city\": \"New City\",\n    \"state\": \"New State\",\n    \"postalCode\": \"54321\",\n    \"isDefault\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers/addresses/{{addressId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers", "addresses", "{{addressId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Address",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers/addresses/{{addressId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers", "addresses", "{{addressId}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Service Management",
+			"item": [
+				{
+					"name": "Get All Services",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/services",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "services"]
+						}
+					}
+				},
+				{
+					"name": "Create Service (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Plumbing Service\",\n    \"description\": \"Professional plumbing services\",\n    \"basePrice\": 50.00,\n    \"category\": \"PLUMBING\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/services",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "services"]
+						}
+					}
+				},
+				{
+					"name": "Get Service by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/services/{{serviceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "services", "{{serviceId}}"]
+						}
+					}
+				},
+				{
+					"name": "Update Service (Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Service\",\n    \"description\": \"Updated service description\",\n    \"basePrice\": 75.00,\n    \"category\": \"ELECTRICAL\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/services/{{serviceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "services", "{{serviceId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Service (Admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/services/{{serviceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "services", "{{serviceId}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Service Requests",
+			"item": [
+				{
+					"name": "Create Service Request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"serviceId\": \"{{serviceId}}\",\n    \"addressId\": \"{{addressId}}\",\n    \"scheduledDate\": \"2024-03-20T10:00:00\",\n    \"description\": \"Leaking pipe needs repair\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/service-requests",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "service-requests"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer Service Requests",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/service-requests",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "service-requests"]
+						}
+					}
+				},
+				{
+					"name": "Get Service Request Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/service-requests/{{serviceRequestId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "service-requests", "{{serviceRequestId}}"]
+						}
+					}
+				},
+				{
+					"name": "Cancel Request",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/service-requests/{{serviceRequestId}}/cancel",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "service-requests", "{{serviceRequestId}}", "cancel"]
+						}
+					}
+				},
+				{
+					"name": "Accept Assignment (Technician)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/service-requests/{{serviceRequestId}}/accept",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "service-requests", "{{serviceRequestId}}", "accept"]
+						}
+					}
+				},
+				{
+					"name": "Complete Request (Technician)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/service-requests/{{serviceRequestId}}/complete",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "service-requests", "{{serviceRequestId}}", "complete"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Technician Management",
+			"item": [
+				{
+					"name": "Get Technician Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/technicians/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "technicians", "profile"]
+						}
+					}
+				},
+				{
+					"name": "Update Technician Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fullName\": \"Updated Tech Name\",\n    \"phone\": \"9876543210\",\n    \"gender\": \"MALE\",\n    \"experience\": 5,\n    \"bio\": \"Experienced technician\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/technicians/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "technicians", "profile"]
+						}
+					}
+				},
+				{
+					"name": "Get Active Technicians",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/technicians/active",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "technicians", "active"]
+						}
+					}
+				},
+				{
+					"name": "Search Technicians",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/technicians/search?query={{searchQuery}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "technicians", "search"],
+							"query": [
+								{
+									"key": "query",
+									"value": "{{searchQuery}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get All Skills",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/technicians/skills",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "technicians", "skills"]
+						}
+					}
+				},
+				{
+					"name": "Create Skill (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"New Skill\",\n    \"description\": \"Description of the new skill\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/technicians/skills",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "technicians", "skills"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Payment Management",
+			"item": [
+				{
+					"name": "Create Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"serviceRequestId\": \"{{serviceRequestId}}\",\n    \"amount\": 100.00,\n    \"paymentMethod\": \"CREDIT_CARD\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/payments",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "payments"]
+						}
+					}
+				},
+				{
+					"name": "Get Payment History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/payments/history",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "payments", "history"]
+						}
+					}
+				},
+				{
+					"name": "Get Payment Methods",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/payments/methods",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "payments", "methods"]
+						}
+					}
+				},
+				{
+					"name": "Get All Payments (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/payments/admin/all",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "payments", "admin", "all"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "7. Feedback Management",
+			"item": [
+				{
+					"name": "Create Feedback",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"serviceRequestId\": \"{{serviceRequestId}}\",\n    \"rating\": 5,\n    \"comment\": \"Excellent service!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/feedback",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "feedback"]
+						}
+					}
+				},
+				{
+					"name": "Get Service Feedback",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/feedback/service/{{serviceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "feedback", "service", "{{serviceId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Public Feedbacks",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/feedbacks/public",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "feedbacks", "public"]
+						}
+					}
+				},
+				{
+					"name": "Get My Feedbacks",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/feedbacks/my",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "feedbacks", "my"]
+						}
+					}
+				},
+				{
+					"name": "Reply to Feedback (Technician)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reply\": \"Thank you for your feedback. We appreciate your comments.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/feedbacks/{{feedbackId}}/reply",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "feedbacks", "{{feedbackId}}", "reply"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "8. Notification Management",
+			"item": [
+				{
+					"name": "Get My Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/my",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", "my"]
+						}
+					}
+				},
+				{
+					"name": "Get Unread Count",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/unread-count",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", "unread-count"]
+						}
+					}
+				},
+				{
+					"name": "Mark as Read",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/read",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", "{{notificationId}}", "read"]
+						}
+					}
+				},
+				{
+					"name": "Delete Notification",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", "{{notificationId}}"]
+						}
+					}
+				},
+				{
+					"name": "Create Notification (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{userId}}\",\n    \"title\": \"New Notification\",\n    \"message\": \"This is a notification message\",\n    \"type\": \"SYSTEM\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", "create"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "9. Admin Management",
+			"item": [
+				{
+					"name": "Get System Overview",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/system/overview",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "system", "overview"]
+						}
+					}
+				},
+				{
+					"name": "Manage User Status",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{userId}}\",\n    \"status\": \"ACTIVE\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/users/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "users", "status"]
+						}
+					}
+				},
+				{
+					"name": "System Dashboard",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/dashboard",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "dashboard"]
+						}
+					}
+				},
+				{
+					"name": "User Management",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "users"]
+						}
+					}
+				},
+				{
+					"name": "System Reports",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/reports/system",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "reports", "system"]
+						}
+					}
+				},
+				{
+					"name": "System Health",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/system/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "system", "health"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "10. System Testing",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/test/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "test", "health"]
+						}
+					}
+				},
+				{
+					"name": "Database Test",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/test/database",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "test", "database"]
+						}
+					}
+				},
+				{
+					"name": "Customer Role Test",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/test/customer",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "test", "customer"]
+						}
+					}
+				},
+				{
+					"name": "Technician Role Test",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/test/technician",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "test", "technician"]
+						}
+					}
+				},
+				{
+					"name": "Admin Role Test",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/test/admin",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "test", "admin"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8100"
+		},
+		{
+			"key": "authToken",
+			"value": ""
+		},
+		{
+			"key": "userId",
+			"value": ""
+		},
+		{
+			"key": "serviceId",
+			"value": ""
+		},
+		{
+			"key": "addressId",
+			"value": ""
+		},
+		{
+			"key": "serviceRequestId",
+			"value": ""
+		},
+		{
+			"key": "notificationId",
+			"value": ""
+		},
+		{
+			"key": "feedbackId",
+			"value": ""
+		},
+		{
+			"key": "searchQuery",
+			"value": ""
+		}
+	]
+} 

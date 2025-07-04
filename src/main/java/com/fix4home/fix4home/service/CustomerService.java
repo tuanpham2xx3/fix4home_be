@@ -66,10 +66,10 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
         
         validatePositiveId(userId, "userId");
         validateRequired(request, "request");
-        
+
         User user = findUserById(userId);
         validateUserRole(user, Role.CUSTOMER);
-        
+
         // Admin can update any customer, customers can only update their own
         if (!hasRole(Role.ADMIN)) {
             requireAccessToUserResource(userId);
@@ -215,7 +215,7 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
         
         validatePositiveId(addressId, "addressId");
         validateRequired(request, "request");
-        
+
         Address address = findAddressById(addressId);
         
         // Check access rights (users can only update their own addresses)

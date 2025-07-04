@@ -22,6 +22,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
 import static com.fix4home.fix4home.service.ServiceValidationUtils.*;
 
@@ -37,6 +38,12 @@ public class AuthService extends BaseService {
     private final JwtTokenProvider tokenProvider;
     private final AuthenticationManager authenticationManager;
 
+    @Value("${admin.registration.key}")
+    private String adminRegistrationKey;
+
+    @Value("${admin.registration.enabled:false}")
+    private boolean adminRegistrationEnabled;
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         logBusinessOperation("REGISTER_USER", "username=" + request.getUsername(), "role=" + request.getRole());
@@ -46,9 +53,19 @@ public class AuthService extends BaseService {
         validateRequired(request.getUsername(), "username");
         validateRequired(request.getPassword(), "password");
         validateRequired(request.getEmail(), "email");
-        validateRequired(request.getPhoneNumber(), "phoneNumber");
+        validateRequired(request.getPhone(), "phone");
         validateRequired(request.getRole(), "role");
         validateRequired(request.getFullName(), "fullName");
+
+        // Validate admin registration
+        if (request.getRole() == Role.ADMIN) {
+            if (!adminRegistrationEnabled) {
+                throw new BusinessValidationException("Admin registration is currently disabled");
+            }
+            if (request.getAdminKey() == null || !request.getAdminKey().equals(adminRegistrationKey)) {
+                throw new BusinessValidationException("Invalid admin registration key");
+            }
+        }
 
         // Validate unique constraints
         if (userRepository.existsByUsername(request.getUsername())) {
@@ -56,7 +73,7 @@ public class AuthService extends BaseService {
         }
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new UserAlreadyExistsException("email", request.getEmail());
+            throw new UserAlreadyExistsException("Email already registered");
         }
 
         // Create user
@@ -64,7 +81,7 @@ public class AuthService extends BaseService {
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .email(request.getEmail())
-                .phoneNumber(request.getPhoneNumber())
+                .phoneNumber(request.getPhone())
                 .role(request.getRole())
                 .status(determineUserStatus(request.getRole()))
                 .build();

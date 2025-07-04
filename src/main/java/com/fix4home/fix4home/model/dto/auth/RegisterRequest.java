@@ -4,6 +4,7 @@ import com.fix4home.fix4home.model.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,15 +29,20 @@ public class RegisterRequest {
     @NotBlank(message = "Email is required")
     private String email;
     
-    private String phoneNumber;
+    @NotBlank(message = "Phone number is required")
+    @Pattern(regexp = "\\d{10,11}", message = "Phone number must be 10-11 digits")
+    private String phone;
     
     @NotNull(message = "Role is required")
     private Role role;
     
     // Optional profile fields
+    @NotBlank(message = "Full name is required")
     private String fullName;
     
     // For technician registration
     private String skills;
     private String experience;
+
+    private String adminKey; // Optional, required only for ADMIN registration
 } 

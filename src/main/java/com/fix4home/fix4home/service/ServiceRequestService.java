@@ -311,7 +311,7 @@ public class ServiceRequestService extends BaseService implements DTOConverter<S
         ServiceRequest serviceRequest = findServiceRequestById(id);
         
         validateStatusTransition(serviceRequest.getStatus(), request.getStatus());
-        
+
         serviceRequest.setStatus(request.getStatus());
         ServiceRequest savedRequest = serviceRequestRepository.save(serviceRequest);
 
