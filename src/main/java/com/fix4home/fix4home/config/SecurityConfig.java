@@ -68,6 +68,9 @@ public class SecurityConfig {
                 // Customer endpoints - authenticated users only (role-based security in controller)
                 .requestMatchers("/api/v1/customers/**").authenticated()
                 
+                // Service Request endpoints - authenticated users only (role-based security in controller)
+                .requestMatchers("/api/service-requests/**").authenticated()
+                
                 // Public technician endpoints (GET requests for browsing)
                 .requestMatchers(HttpMethod.GET, "/api/technicians/active").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/technicians/search").permitAll()

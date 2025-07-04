@@ -1,0 +1,24 @@
+package com.fix4home.fix4home.model.dto.servicerequest;
+
+import com.fix4home.fix4home.model.enums.ServiceRequestStatus;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class UpdateServiceRequestStatusRequest {
+    
+    @NotNull(message = "Status is required")
+    private ServiceRequestStatus status;
+    
+    private LocalDateTime scheduledTime;
+    
+    private LocalDateTime completedTime;
+} 
