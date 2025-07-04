@@ -101,6 +101,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/payments/methods").permitAll()
                 .requestMatchers("/api/payments/**").authenticated()
                 
+                // Feedback endpoints
+                .requestMatchers(HttpMethod.GET, "/api/feedbacks/public").permitAll()
+                .requestMatchers("/api/feedbacks/**").authenticated()
+                
                 // Admin endpoints - all require ADMIN role
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 
