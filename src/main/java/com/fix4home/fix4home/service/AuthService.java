@@ -12,6 +12,7 @@ import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.CustomerProfileRepository;
 import com.fix4home.fix4home.repository.TechnicianProfileRepository;
 import com.fix4home.fix4home.repository.UserRepository;
+import com.fix4home.fix4home.security.CustomUserDetails;
 import com.fix4home.fix4home.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +54,7 @@ public class AuthService extends BaseService {
         validateRequired(request.getUsername(), "username");
         validateRequired(request.getPassword(), "password");
         validateRequired(request.getEmail(), "email");
-        validateRequired(request.getPhone(), "phone");
+        validateRequired(request.getPhoneNumber(), "phoneNumber");
         validateRequired(request.getRole(), "role");
         validateRequired(request.getFullName(), "fullName");
 
@@ -81,7 +82,7 @@ public class AuthService extends BaseService {
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .email(request.getEmail())
-                .phoneNumber(request.getPhone())
+                .phoneNumber(request.getPhoneNumber())
                 .role(request.getRole())
                 .status(determineUserStatus(request.getRole()))
                 .build();
@@ -227,5 +228,13 @@ public class AuthService extends BaseService {
     private TechnicianProfile findTechnicianProfileByUser(User user) {
         return technicianProfileRepository.findByUser(user)
                 .orElseThrow(() -> new TechnicianNotFoundException(user.getId(), "technician profile"));
+    }
+
+    public String generateAccessToken(User user) {
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+            userDetails, null, userDetails.getAuthorities()
+        );
+        return tokenProvider.generateToken(authentication);
     }
 } 

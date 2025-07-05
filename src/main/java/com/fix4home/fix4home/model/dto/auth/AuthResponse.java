@@ -36,4 +36,9 @@ public class AuthResponse {
     private String skills;
     private String experience;
     private Float rating;
+
+    public AuthResponse(String accessToken, Long userId) {
+        this.accessToken = accessToken;
+        this.userId = userId;
+    }
 } 
