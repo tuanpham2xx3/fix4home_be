@@ -140,12 +140,23 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @CookieValue(name = "refresh_token", required = false) String refreshToken,
+            @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
             HttpServletResponse response) {
         
         // Clear refresh token from database if exists
         if (refreshToken != null) {
             refreshTokenService.findByToken(refreshToken)
-                    .ifPresent(token -> refreshTokenService.deleteByUserId(token.getUser().getId()));
+                    .ifPresent(token -> {
+                        if (deviceId != null && !deviceId.trim().isEmpty()) {
+                            // Logout specific device
+                            refreshTokenService.revokeTokenByDeviceId(token.getUser().getId(), deviceId);
+                            log.info("Logged out device: {} for user: {}", deviceId, token.getUser().getId());
+                        } else {
+                            // Logout all devices
+                            refreshTokenService.deleteByUserId(token.getUser().getId());
+                            log.info("Logged out all devices for user: {}", token.getUser().getId());
+                        }
+                    });
         }
         
         // Clear refresh token cookie
@@ -156,8 +167,12 @@ public class AuthController {
         cookie.setSecure(true);
         response.addCookie(cookie);
         
+        String message = deviceId != null ? 
+            "Logged out successfully from device" : 
+            "Logged out successfully from all devices";
+            
         return ResponseEntity.ok(
-                ApiResponse.success("Logged out successfully", null));
+                ApiResponse.success(message, null));
     }
 
     @PostMapping("/verify")
