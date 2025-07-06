@@ -32,6 +32,7 @@ public class RefreshTokenService {
     private Counter refreshTokenCreatedCounter;
     private Counter refreshTokenRevokedCounter;
     private Counter refreshTokenExpiredCounter;
+    private Counter refreshTokenRotatedCounter;
 
     @Value("${jwt.refresh-token.expiration}")
     private Long refreshTokenDurationMs;
@@ -48,6 +49,10 @@ public class RefreshTokenService {
         
         refreshTokenExpiredCounter = Counter.builder("refresh_token_expired")
                 .description("Number of refresh tokens expired")
+                .register(meterRegistry);
+
+        refreshTokenRotatedCounter = Counter.builder("refresh_token_rotated")
+                .description("Number of refresh tokens rotated")
                 .register(meterRegistry);
     }
 
@@ -88,6 +93,31 @@ public class RefreshTokenService {
             throw new TokenRefreshException(token.getToken(), "Refresh token was expired");
         }
         return token;
+    }
+
+    @Transactional
+    public RefreshToken rotateToken(RefreshToken oldToken) {
+        // Verify the old token is still valid
+        verifyExpiration(oldToken);
+        
+        // Create new token
+        RefreshToken newToken = new RefreshToken();
+        newToken.setUser(oldToken.getUser());
+        newToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
+        newToken.setToken(UUID.randomUUID().toString());
+        newToken.setDeviceId(oldToken.getDeviceId());
+        
+        // Save new token
+        RefreshToken savedToken = refreshTokenRepository.save(newToken);
+        
+        // Invalidate old token
+        refreshTokenRepository.delete(oldToken);
+        
+        refreshTokenRotatedCounter.increment();
+        log.info("Rotated refresh token for user: {}, device: {}", 
+                oldToken.getUser().getId(), oldToken.getDeviceId());
+        
+        return savedToken;
     }
 
     @Transactional

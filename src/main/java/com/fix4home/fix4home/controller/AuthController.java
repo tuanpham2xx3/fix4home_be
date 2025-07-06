@@ -84,17 +84,27 @@ public class AuthController {
         try {
             return refreshTokenService.findByToken(refreshToken)
                     .map(refreshTokenService::verifyExpiration)
-                    .map(RefreshToken::getUser)
-                    .map(user -> {
-                        String accessToken = authService.generateAccessToken(user);
+                    .map(oldToken -> {
+                        // Generate new access token
+                        String accessToken = authService.generateAccessToken(oldToken.getUser());
                         
-                        // Create new refresh token (rotation)
-                        setRefreshTokenCookie(response, user.getId(), deviceId);
+                        // Rotate refresh token
+                        RefreshToken newToken = refreshTokenService.rotateToken(oldToken);
                         
-                        // Log successful refresh
-                        log.info("Token refreshed successfully for user: {}, device: {}", user.getId(), deviceId);
+                        // Set new refresh token cookie
+                        Cookie cookie = new Cookie("refresh_token", newToken.getToken());
+                        cookie.setMaxAge(30 * 24 * 60 * 60); // 30 days
+                        cookie.setPath("/api/v1/auth");
+                        cookie.setHttpOnly(true);
+                        cookie.setSecure(true);
+                        cookie.setAttribute("SameSite", "Strict");
+                        response.addCookie(cookie);
                         
-                        AuthResponse authResponse = new AuthResponse(accessToken, user.getId());
+                        // Log successful refresh and rotation
+                        log.info("Token refreshed and rotated successfully for user: {}, device: {}", 
+                                oldToken.getUser().getId(), oldToken.getDeviceId());
+                        
+                        AuthResponse authResponse = new AuthResponse(accessToken, oldToken.getUser().getId());
                         return ResponseEntity.ok(
                                 ApiResponse.success("Token refreshed successfully", authResponse));
                     })
