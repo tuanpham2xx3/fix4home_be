@@ -9,7 +9,12 @@ import java.time.Instant;
 
 @Data
 @Entity
-@Table(name = "refresh_tokens")
+@Table(name = "refresh_tokens", 
+    uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"user_id", "device_id"}, 
+            name = "uk_user_device")
+    }
+)
 @NoArgsConstructor
 @AllArgsConstructor
 public class RefreshToken {
@@ -20,13 +25,14 @@ public class RefreshToken {
     @Column(nullable = false, unique = true)
     private String token;
 
-    @OneToOne
+    @ManyToOne
     @JoinColumn(name = "user_id", referencedColumnName = "id")
     private User user;
 
     @Column(nullable = false)
     private Instant expiryDate;
 
+    @Column(nullable = false)
     private String deviceId;
 
     @Column(name = "created_at")

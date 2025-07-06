@@ -56,14 +56,22 @@ public class RefreshTokenService {
                 .register(meterRegistry);
     }
 
+    @Transactional
     public RefreshToken createRefreshToken(Long userId, String deviceId) {
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            throw new TokenRefreshException("Device ID is required for refresh token creation");
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new TokenRefreshException("User not found"));
 
-        // Revoke existing token for this device if exists
+        // Delete existing token for this device if exists
         refreshTokenRepository.findByUserAndDeviceId(user, deviceId)
                 .ifPresent(token -> {
+                    log.info("Deleting existing token for user: {} and device: {}", userId, deviceId);
                     refreshTokenRepository.delete(token);
+                    // Ensure the deletion is flushed before creating new token
+                    refreshTokenRepository.flush();
                     refreshTokenRevokedCounter.increment();
                 });
 

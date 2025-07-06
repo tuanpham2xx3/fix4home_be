@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
 
@@ -52,14 +53,24 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Transactional
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody LoginRequest request,
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
             HttpServletResponse response) {
         AuthResponse authResponse = authService.login(request);
         
-        // Create refresh token and set cookie
-        setRefreshTokenCookie(response, authResponse.getUserId(), deviceId);
+        // Only set refresh token cookie if deviceId is provided
+        if (deviceId != null && !deviceId.trim().isEmpty()) {
+            try {
+                setRefreshTokenCookie(response, authResponse.getUserId(), deviceId);
+            } catch (Exception e) {
+                log.error("Error creating refresh token", e);
+                // Still return success response with access token
+                return ResponseEntity.ok(
+                    ApiResponse.success("Login successful but failed to create refresh token", authResponse));
+            }
+        }
         
         return ResponseEntity.ok(
                 ApiResponse.success("Login successful", authResponse));
@@ -193,5 +204,7 @@ public class AuthController {
         cookie.setSecure(true);
         cookie.setAttribute("SameSite", "Strict");
         response.addCookie(cookie);
+        
+        log.info("Set refresh token cookie for user: {}, device: {}", userId, deviceId);
     }
 } 
