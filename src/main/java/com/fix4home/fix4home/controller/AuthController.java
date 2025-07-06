@@ -5,10 +5,13 @@ import com.fix4home.fix4home.exception.TokenRefreshException;
 import com.fix4home.fix4home.model.dto.auth.AuthResponse;
 import com.fix4home.fix4home.model.dto.auth.LoginRequest;
 import com.fix4home.fix4home.model.dto.auth.RegisterRequest;
+import com.fix4home.fix4home.model.dto.auth.TokenInfoDTO;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.entity.RefreshToken;
 import com.fix4home.fix4home.model.entity.User;
+import com.fix4home.fix4home.repository.UserRepository;
 import com.fix4home.fix4home.security.CustomUserDetails;
+import com.fix4home.fix4home.security.JwtTokenProvider;
 import com.fix4home.fix4home.service.AuthService;
 import com.fix4home.fix4home.service.RefreshTokenService;
 import jakarta.servlet.http.Cookie;
@@ -18,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
 
@@ -30,6 +34,8 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
     private final RateLimitConfig rateLimitConfig;
+    private final JwtTokenProvider tokenProvider;
+    private final UserRepository userRepository;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -141,6 +147,40 @@ public class AuthController {
         
         return ResponseEntity.ok(
                 ApiResponse.success("Logged out successfully", null));
+    }
+
+    @PostMapping("/verify")
+    public ResponseEntity<ApiResponse<TokenInfoDTO>> verifyToken(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("No token provided"));
+        }
+
+        String token = authHeader.substring(7);
+        boolean isValid = tokenProvider.validateToken(token);
+
+        if (!isValid) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Invalid token"));
+        }
+
+        // Get user information
+        String username = tokenProvider.getUsernameFromToken(token);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Build response
+        TokenInfoDTO tokenInfo = TokenInfoDTO.builder()
+                .userId(user.getId())
+                .username(user.getUsername())
+                .role(user.getRole())
+                .expiresIn(tokenProvider.getRemainingTime(token))
+                .isValid(true)
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success("Token is valid", tokenInfo));
     }
 
     private void setRefreshTokenCookie(HttpServletResponse response, Long userId, String deviceId) {

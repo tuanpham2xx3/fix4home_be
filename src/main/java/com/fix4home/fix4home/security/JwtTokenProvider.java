@@ -82,4 +82,32 @@ public class JwtTokenProvider {
     public long getExpirationTime() {
         return jwtExpirationInMs / 1000; // Convert to seconds
     }
+
+    public Claims getClaimsFromToken(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (Exception e) {
+            log.error("Error getting claims from token", e);
+            return null;
+        }
+    }
+
+    public Long getRemainingTime(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            if (claims == null) return 0L;
+
+            Date expiration = claims.getExpiration();
+            Date now = new Date();
+
+            long diff = expiration.getTime() - now.getTime();
+            return diff > 0 ? diff / 1000 : 0; // Convert to seconds
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
 } 
