@@ -104,28 +104,11 @@ public class RefreshTokenService {
     }
 
     @Transactional
-    public RefreshToken rotateToken(RefreshToken oldToken) {
-        // Verify the old token is still valid
-        verifyExpiration(oldToken);
-        
-        // Create new token
-        RefreshToken newToken = new RefreshToken();
-        newToken.setUser(oldToken.getUser());
-        newToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
-        newToken.setToken(UUID.randomUUID().toString());
-        newToken.setDeviceId(oldToken.getDeviceId());
-        
-        // Save new token
-        RefreshToken savedToken = refreshTokenRepository.save(newToken);
-        
-        // Invalidate old token
-        refreshTokenRepository.delete(oldToken);
-        
-        refreshTokenRotatedCounter.increment();
-        log.info("Rotated refresh token for user: {}, device: {}", 
-                oldToken.getUser().getId(), oldToken.getDeviceId());
-        
-        return savedToken;
+    public void updateLastUsedTime(RefreshToken token) {
+        token.setLastUsedAt(Instant.now());
+        refreshTokenRepository.save(token);
+        log.debug("Updated last used time for refresh token of user: {}, device: {}", 
+                token.getUser().getId(), token.getDeviceId());
     }
 
     @Transactional

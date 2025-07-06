@@ -101,27 +101,18 @@ public class AuthController {
         try {
             return refreshTokenService.findByToken(refreshToken)
                     .map(refreshTokenService::verifyExpiration)
-                    .map(oldToken -> {
-                        // Generate new access token
-                        String accessToken = authService.generateAccessToken(oldToken.getUser());
+                    .map(token -> {
+                        // Generate new access token only
+                        String accessToken = authService.generateAccessToken(token.getUser());
                         
-                        // Rotate refresh token
-                        RefreshToken newToken = refreshTokenService.rotateToken(oldToken);
+                        // Update last used time of the refresh token
+                        refreshTokenService.updateLastUsedTime(token);
                         
-                        // Set new refresh token cookie
-                        Cookie cookie = new Cookie("refresh_token", newToken.getToken());
-                        cookie.setMaxAge(30 * 24 * 60 * 60); // 30 days
-                        cookie.setPath("/api/v1/auth");
-                        cookie.setHttpOnly(true);
-                        cookie.setSecure(true);
-                        cookie.setAttribute("SameSite", "Strict");
-                        response.addCookie(cookie);
+                        // Log successful refresh
+                        log.info("Access token refreshed successfully for user: {}, device: {}", 
+                                token.getUser().getId(), token.getDeviceId());
                         
-                        // Log successful refresh and rotation
-                        log.info("Token refreshed and rotated successfully for user: {}, device: {}", 
-                                oldToken.getUser().getId(), oldToken.getDeviceId());
-                        
-                        AuthResponse authResponse = new AuthResponse(accessToken, oldToken.getUser().getId());
+                        AuthResponse authResponse = new AuthResponse(accessToken, token.getUser().getId());
                         return ResponseEntity.ok(
                                 ApiResponse.success("Token refreshed successfully", authResponse));
                     })
@@ -140,7 +131,7 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @CookieValue(name = "refresh_token", required = false) String refreshToken,
-            @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
+            @RequestHeader(value = "X-Device-Id", required = true) String deviceId,
             HttpServletResponse response) {
         
         if (refreshToken == null) {
@@ -151,15 +142,9 @@ public class AuthController {
         // Get current refresh token
         return refreshTokenService.findByToken(refreshToken)
                 .map(token -> {
-                    // If device ID is provided, logout that specific device
-                    if (deviceId != null && !deviceId.trim().isEmpty()) {
-                        refreshTokenService.revokeTokenByDeviceId(token.getUser().getId(), deviceId);
-                        log.info("Logged out device: {} for user: {}", deviceId, token.getUser().getId());
-                    } else {
-                        // Otherwise, just logout the current device
-                        refreshTokenService.deleteByUserId(token.getUser().getId());
-                        log.info("Logged out current device for user: {}", token.getUser().getId());
-                    }
+                    // Logout specific device only
+                    refreshTokenService.revokeTokenByDeviceId(token.getUser().getId(), deviceId);
+                    log.info("Logged out device: {} for user: {}", deviceId, token.getUser().getId());
 
                     // Clear refresh token cookie
                     Cookie cookie = new Cookie("refresh_token", "");
