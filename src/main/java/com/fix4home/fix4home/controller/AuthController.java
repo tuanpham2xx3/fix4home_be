@@ -143,36 +143,69 @@ public class AuthController {
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
             HttpServletResponse response) {
         
-        // Clear refresh token from database if exists
-        if (refreshToken != null) {
-            refreshTokenService.findByToken(refreshToken)
-                    .ifPresent(token -> {
-                        if (deviceId != null && !deviceId.trim().isEmpty()) {
-                            // Logout specific device
-                            refreshTokenService.revokeTokenByDeviceId(token.getUser().getId(), deviceId);
-                            log.info("Logged out device: {} for user: {}", deviceId, token.getUser().getId());
-                        } else {
-                            // Logout all devices
-                            refreshTokenService.deleteByUserId(token.getUser().getId());
-                            log.info("Logged out all devices for user: {}", token.getUser().getId());
-                        }
-                    });
+        if (refreshToken == null) {
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("No active session", null));
         }
+
+        // Get current refresh token
+        return refreshTokenService.findByToken(refreshToken)
+                .map(token -> {
+                    // If device ID is provided, logout that specific device
+                    if (deviceId != null && !deviceId.trim().isEmpty()) {
+                        refreshTokenService.revokeTokenByDeviceId(token.getUser().getId(), deviceId);
+                        log.info("Logged out device: {} for user: {}", deviceId, token.getUser().getId());
+                    } else {
+                        // Otherwise, just logout the current device
+                        refreshTokenService.deleteByUserId(token.getUser().getId());
+                        log.info("Logged out current device for user: {}", token.getUser().getId());
+                    }
+
+                    // Clear refresh token cookie
+                    Cookie cookie = new Cookie("refresh_token", "");
+                    cookie.setMaxAge(0);
+                    cookie.setPath("/api/v1/auth");
+                    cookie.setHttpOnly(true);
+                    cookie.setSecure(true);
+                    response.addCookie(cookie);
+
+                    return ResponseEntity.ok(
+                            ApiResponse.<Void>success("Logged out successfully", null));
+                })
+                .orElse(ResponseEntity.ok(
+                        ApiResponse.<Void>success("No active session", null)));
+    }
+
+    @PostMapping("/logout-all")
+    public ResponseEntity<ApiResponse<Void>> logoutAllDevices(
+            @CookieValue(name = "refresh_token", required = false) String refreshToken,
+            HttpServletResponse response) {
         
-        // Clear refresh token cookie
-        Cookie cookie = new Cookie("refresh_token", "");
-        cookie.setMaxAge(0);
-        cookie.setPath("/api/v1/auth");
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);
-        response.addCookie(cookie);
-        
-        String message = deviceId != null ? 
-            "Logged out successfully from device" : 
-            "Logged out successfully from all devices";
-            
-        return ResponseEntity.ok(
-                ApiResponse.success(message, null));
+        if (refreshToken == null) {
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("No active session", null));
+        }
+
+        // Get current refresh token to identify user
+        return refreshTokenService.findByToken(refreshToken)
+                .map(token -> {
+                    // Logout all devices for this user
+                    refreshTokenService.deleteByUserId(token.getUser().getId());
+                    log.info("Logged out all devices for user: {}", token.getUser().getId());
+
+                    // Clear refresh token cookie
+                    Cookie cookie = new Cookie("refresh_token", "");
+                    cookie.setMaxAge(0);
+                    cookie.setPath("/api/v1/auth");
+                    cookie.setHttpOnly(true);
+                    cookie.setSecure(true);
+                    response.addCookie(cookie);
+
+                    return ResponseEntity.ok(
+                            ApiResponse.<Void>success("Logged out from all devices successfully", null));
+                })
+                .orElse(ResponseEntity.ok(
+                        ApiResponse.<Void>success("No active session", null)));
     }
 
     @PostMapping("/verify")
