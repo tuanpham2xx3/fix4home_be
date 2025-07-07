@@ -4,6 +4,7 @@ import com.fix4home.fix4home.config.RateLimitConfig;
 import com.fix4home.fix4home.exception.TokenRefreshException;
 import com.fix4home.fix4home.model.dto.auth.AuthResponse;
 import com.fix4home.fix4home.model.dto.auth.LoginRequest;
+import com.fix4home.fix4home.model.dto.auth.RefreshTokenResponse;
 import com.fix4home.fix4home.model.dto.auth.RegisterRequest;
 import com.fix4home.fix4home.model.dto.auth.TokenInfoDTO;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
@@ -77,7 +78,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(
+    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshToken(
             @CookieValue(name = "refresh_token", required = false) String refreshToken,
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
             @RequestHeader(value = "X-Forwarded-For", required = false) String ipAddress,
@@ -112,9 +113,17 @@ public class AuthController {
                         log.info("Access token refreshed successfully for user: {}, device: {}", 
                                 token.getUser().getId(), token.getDeviceId());
                         
-                        AuthResponse authResponse = new AuthResponse(accessToken, token.getUser().getId());
+                        // Calculate expires in seconds (15 minutes)
+                        Long expiresIn = 900L; // 15 * 60 seconds
+                        
+                        RefreshTokenResponse refreshResponse = new RefreshTokenResponse(
+                                accessToken, 
+                                token.getUser().getId(), 
+                                expiresIn
+                        );
+                        
                         return ResponseEntity.ok(
-                                ApiResponse.success("Token refreshed successfully", authResponse));
+                                ApiResponse.success("Token refreshed successfully", refreshResponse));
                     })
                     .orElseGet(() -> {
                         log.warn("Invalid refresh token attempt: {}", refreshToken);
