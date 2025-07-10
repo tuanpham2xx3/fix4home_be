@@ -186,6 +186,90 @@ public class TechnicianService extends BaseService {
                 .toList();
     }
 
+    // ==================== ONLINE/OFFLINE STATUS AND LOCATION MANAGEMENT ====================
+
+    @Transactional
+    public TechnicianProfileDTO updateMyStatus(UpdateStatusRequest request) {
+        logBusinessOperation("UPDATE_MY_STATUS", "isOnline=" + request.getIsOnline());
+        requireRole(Role.TECHNICIAN);
+
+        validateRequired(request, "request");
+        validateRequired(request.getIsOnline(), "isOnline");
+
+        User user = getCurrentUser();
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
+
+        profile.setIsOnline(request.getIsOnline());
+        profile.setLastSeenAt(java.time.LocalDateTime.now());
+
+        TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
+        return convertToTechnicianProfileDTO(user, savedProfile);
+    }
+
+    @Transactional
+    public TechnicianProfileDTO updateMyLocation(UpdateLocationRequest request) {
+        logBusinessOperation("UPDATE_MY_LOCATION");
+        requireRole(Role.TECHNICIAN);
+
+        validateRequired(request, "request");
+
+        User user = getCurrentUser();
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
+
+        if (request.getLatitude() != null) {
+            profile.setCurrentLatitude(request.getLatitude());
+        }
+        
+        if (request.getLongitude() != null) {
+            profile.setCurrentLongitude(request.getLongitude());
+        }
+        
+        if (StringUtils.hasText(request.getAddress())) {
+            profile.setCurrentAddress(request.getAddress());
+        }
+        
+        if (request.getWorkingRadius() != null) {
+            profile.setWorkingRadius(request.getWorkingRadius());
+        }
+
+        profile.setLastSeenAt(java.time.LocalDateTime.now());
+
+        TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
+        return convertToTechnicianProfileDTO(user, savedProfile);
+    }
+
+    @Transactional(readOnly = true)
+    public List<NearbyTechnicianDTO> findNearbyTechnicians(Double latitude, Double longitude, 
+                                                           Integer radiusKm, Boolean onlineOnly, Long serviceId) {
+        logBusinessOperation("FIND_NEARBY_TECHNICIANS", 
+                "lat=" + latitude + ", lng=" + longitude + ", radius=" + radiusKm + "km");
+
+        validateRequired(latitude, "latitude");
+        validateRequired(longitude, "longitude");
+        validateRequired(radiusKm, "radiusKm");
+
+        // Get all active technicians with location data
+        List<TechnicianProfile> candidates = technicianProfileRepository.findByStatus(UserStatus.ACTIVE).stream()
+                .filter(profile -> profile.getCurrentLatitude() != null && profile.getCurrentLongitude() != null)
+                .filter(profile -> !onlineOnly || Boolean.TRUE.equals(profile.getIsOnline()))
+                .toList();
+
+        // Calculate distances and filter by radius
+        return candidates.stream()
+                .map(profile -> {
+                    double distance = calculateDistance(latitude, longitude, 
+                            profile.getCurrentLatitude(), profile.getCurrentLongitude());
+                    
+                    if (distance <= radiusKm) {
+                        return convertToNearbyTechnicianDTO(profile, distance, serviceId);
+                    }
+                    return null;
+                })
+                .filter(dto -> dto != null)
+                .sorted((a, b) -> Double.compare(a.getDistanceKm(), b.getDistanceKm()))
+                .toList();
+    }
+
     // ==================== TECHNICIAN APPROVAL WORKFLOW ====================
 
     @Transactional
@@ -385,7 +469,13 @@ public class TechnicianService extends BaseService {
                    .skills(profile.getSkills())
                    .experience(profile.getExperience())
                    .rating(profile.getRating())
-                   .status(profile.getStatus());
+                   .status(profile.getStatus())
+                   .isOnline(profile.getIsOnline())
+                   .lastSeenAt(profile.getLastSeenAt())
+                   .currentLatitude(profile.getCurrentLatitude())
+                   .currentLongitude(profile.getCurrentLongitude())
+                   .currentAddress(profile.getCurrentAddress())
+                   .workingRadius(profile.getWorkingRadius());
 
             // Get skills list
             List<TechnicianSkill> technicianSkills = technicianSkillRepository.findByTechnicianProfile(profile);
@@ -403,5 +493,60 @@ public class TechnicianService extends BaseService {
                 .id(skill.getId())
                 .name(skill.getName())
                 .build();
+    }
+
+    private NearbyTechnicianDTO convertToNearbyTechnicianDTO(TechnicianProfile profile, double distance, Long serviceId) {
+        // Get technician skills
+        List<TechnicianSkill> technicianSkills = technicianSkillRepository.findByTechnicianProfile(profile);
+        List<SkillDTO> skillList = technicianSkills.stream()
+                .map(ts -> convertToSkillDTO(ts.getSkill()))
+                .toList();
+
+        // Filter by service skills if serviceId is provided
+        if (serviceId != null) {
+            // TODO: Add service-skill filtering logic when service skills are defined
+            // For now, return all technicians
+        }
+
+        return NearbyTechnicianDTO.builder()
+                .userId(profile.getUser().getId())
+                .profileId(profile.getId())
+                .fullName(profile.getFullName())
+                .email(profile.getUser().getEmail())
+                .phoneNumber(profile.getUser().getPhoneNumber())
+                .rating(profile.getRating())
+                .status(profile.getStatus())
+                .currentLatitude(profile.getCurrentLatitude())
+                .currentLongitude(profile.getCurrentLongitude())
+                .currentAddress(profile.getCurrentAddress())
+                .workingRadius(profile.getWorkingRadius())
+                .distanceKm(distance)
+                .isOnline(profile.getIsOnline())
+                .lastSeenAt(profile.getLastSeenAt())
+                .skillList(skillList)
+                .build();
+    }
+
+    /**
+     * Calculate distance between two points using Haversine formula
+     * @param lat1 Latitude of first point
+     * @param lon1 Longitude of first point
+     * @param lat2 Latitude of second point
+     * @param lon2 Longitude of second point
+     * @return Distance in kilometers
+     */
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        final double EARTH_RADIUS = 6371.0; // Earth radius in kilometers
+
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return EARTH_RADIUS * c;
     }
 } 

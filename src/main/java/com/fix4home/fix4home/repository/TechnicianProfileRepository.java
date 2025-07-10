@@ -29,4 +29,20 @@ public interface TechnicianProfileRepository extends JpaRepository<TechnicianPro
     
     @Query("SELECT tp FROM TechnicianProfile tp WHERE tp.fullName LIKE %:name%")
     List<TechnicianProfile> findByFullNameContainingIgnoreCase(@Param("name") String name);
+    
+    // Online/Offline Status queries
+    List<TechnicianProfile> findByIsOnlineAndStatus(Boolean isOnline, UserStatus status);
+    
+    @Query("SELECT tp FROM TechnicianProfile tp WHERE tp.isOnline = true AND tp.status = :status")
+    List<TechnicianProfile> findOnlineTechnicians(@Param("status") UserStatus status);
+    
+    @Query("SELECT tp FROM TechnicianProfile tp WHERE tp.isOnline = true AND tp.status = :status AND tp.currentLatitude IS NOT NULL AND tp.currentLongitude IS NOT NULL")
+    List<TechnicianProfile> findOnlineTechniciansWithLocation(@Param("status") UserStatus status);
+    
+    // Location-based queries
+    @Query("SELECT tp FROM TechnicianProfile tp WHERE tp.currentLatitude IS NOT NULL AND tp.currentLongitude IS NOT NULL AND tp.status = :status")
+    List<TechnicianProfile> findTechniciansWithLocation(@Param("status") UserStatus status);
+    
+    @Query("SELECT tp FROM TechnicianProfile tp WHERE tp.status = :status AND tp.isOnline = :isOnline AND tp.currentLatitude IS NOT NULL AND tp.currentLongitude IS NOT NULL")
+    List<TechnicianProfile> findByStatusAndIsOnlineWithLocation(@Param("status") UserStatus status, @Param("isOnline") Boolean isOnline);
 } 

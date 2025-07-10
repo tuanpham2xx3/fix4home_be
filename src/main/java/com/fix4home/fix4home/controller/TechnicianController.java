@@ -119,6 +119,47 @@ public class TechnicianController {
         return ResponseEntity.ok(ApiResponse.success("Your skills updated successfully", skills));
     }
 
+    // ==================== ONLINE/OFFLINE STATUS ENDPOINTS ====================
+
+    @PutMapping("/me/status")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
+    @Operation(summary = "Update my online status", description = "Update current technician's online/offline status")
+    public ResponseEntity<ApiResponse<TechnicianProfileDTO>> updateMyStatus(
+            @Valid @RequestBody UpdateStatusRequest request) {
+        log.info("Request to update current technician's online status to: {}", request.getIsOnline());
+        TechnicianProfileDTO updatedProfile = technicianService.updateMyStatus(request);
+        return ResponseEntity.ok(ApiResponse.success("Online status updated successfully", updatedProfile));
+    }
+
+    @PutMapping("/me/location")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
+    @Operation(summary = "Update my location", description = "Update current technician's location and working radius")
+    public ResponseEntity<ApiResponse<TechnicianProfileDTO>> updateMyLocation(
+            @Valid @RequestBody UpdateLocationRequest request) {
+        log.info("Request to update current technician's location");
+        TechnicianProfileDTO updatedProfile = technicianService.updateMyLocation(request);
+        return ResponseEntity.ok(ApiResponse.success("Location updated successfully", updatedProfile));
+    }
+
+    @GetMapping("/nearby")
+    @Operation(summary = "Find nearby technicians", description = "Find technicians near specified location")
+    public ResponseEntity<ApiResponse<List<NearbyTechnicianDTO>>> findNearbyTechnicians(
+            @Parameter(description = "Latitude coordinate")
+            @RequestParam Double latitude,
+            @Parameter(description = "Longitude coordinate") 
+            @RequestParam Double longitude,
+            @Parameter(description = "Search radius in kilometers")
+            @RequestParam(defaultValue = "10") Integer radiusKm,
+            @Parameter(description = "Only include online technicians")
+            @RequestParam(defaultValue = "false") Boolean onlineOnly,
+            @Parameter(description = "Service ID filter (optional)")
+            @RequestParam(required = false) Long serviceId) {
+        log.info("Request to find nearby technicians at lat: {}, lng: {}, radius: {}km", latitude, longitude, radiusKm);
+        List<NearbyTechnicianDTO> nearbyTechnicians = technicianService.findNearbyTechnicians(
+                latitude, longitude, radiusKm, onlineOnly, serviceId);
+        return ResponseEntity.ok(ApiResponse.success("Nearby technicians found successfully", nearbyTechnicians));
+    }
+
     // ==================== ADMIN TECHNICIAN MANAGEMENT ENDPOINTS ====================
 
     @GetMapping

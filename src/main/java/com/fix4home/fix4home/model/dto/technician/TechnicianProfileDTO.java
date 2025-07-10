@@ -36,4 +36,12 @@ public class TechnicianProfileDTO {
     
     // Skills as list (from TechnicianSkill relationship)
     private List<SkillDTO> skillList;
+    
+    // Online/Offline Status and Location fields
+    private Boolean isOnline;
+    private LocalDateTime lastSeenAt;
+    private Double currentLatitude;
+    private Double currentLongitude;
+    private String currentAddress;
+    private Integer workingRadius;
 } 
