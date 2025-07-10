@@ -44,4 +44,11 @@ public class TechnicianProfileDTO {
     private Double currentLongitude;
     private String currentAddress;
     private Integer workingRadius;
+    
+    // Technician Approval Process fields
+    private String verificationDocuments;
+    private String rejectionReason;
+    private LocalDateTime approvedAt;
+    private Long approvedBy;
+    private String approvedByUsername;
 } 

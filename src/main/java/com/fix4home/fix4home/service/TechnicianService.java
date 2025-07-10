@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
+
 import java.util.List;
 
 @Service
@@ -132,7 +134,7 @@ public class TechnicianService extends BaseService {
         logBusinessOperation("GET_PENDING_TECHNICIANS");
         requireRole(Role.ADMIN);
         
-        List<TechnicianProfile> pendingProfiles = technicianProfileRepository.findByStatus(UserStatus.INACTIVE);
+        List<TechnicianProfile> pendingProfiles = technicianProfileRepository.findByStatus(UserStatus.PENDING_APPROVAL);
         return pendingProfiles.stream()
                 .map(profile -> convertToTechnicianProfileDTO(profile.getUser(), profile))
                 .toList();
@@ -281,22 +283,37 @@ public class TechnicianService extends BaseService {
         User user = findTechnicianById(userId);
         TechnicianProfile profile = findTechnicianProfileByUser(user);
 
+        if (profile.getStatus() != UserStatus.PENDING_APPROVAL) {
+            throw new BusinessValidationException("Technician is not pending approval. Current status: " + profile.getStatus());
+        }
+
         profile.setStatus(UserStatus.ACTIVE);
+        profile.setApprovedAt(LocalDateTime.now());
+        profile.setApprovedBy(getCurrentUser().getId());
+        profile.setRejectionReason(null); // Clear any previous rejection reason
         TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
 
         return convertToTechnicianProfileDTO(user, savedProfile);
     }
 
     @Transactional
-    public TechnicianProfileDTO rejectTechnician(Long userId) {
+    public TechnicianProfileDTO rejectTechnician(Long userId, String rejectionReason) {
         logBusinessOperation("REJECT_TECHNICIAN", "userId=" + userId);
         requireRole(Role.ADMIN);
 
         validatePositiveId(userId, "userId");
+        validateRequired(rejectionReason, "rejectionReason");
         User user = findTechnicianById(userId);
         TechnicianProfile profile = findTechnicianProfileByUser(user);
 
-        profile.setStatus(UserStatus.INACTIVE);
+        if (profile.getStatus() != UserStatus.PENDING_APPROVAL) {
+            throw new BusinessValidationException("Technician is not pending approval. Current status: " + profile.getStatus());
+        }
+
+        profile.setStatus(UserStatus.REJECTED);
+        profile.setRejectionReason(rejectionReason);
+        profile.setApprovedAt(LocalDateTime.now());
+        profile.setApprovedBy(getCurrentUser().getId());
         TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
 
         return convertToTechnicianProfileDTO(user, savedProfile);
@@ -475,7 +492,19 @@ public class TechnicianService extends BaseService {
                    .currentLatitude(profile.getCurrentLatitude())
                    .currentLongitude(profile.getCurrentLongitude())
                    .currentAddress(profile.getCurrentAddress())
-                   .workingRadius(profile.getWorkingRadius());
+                   .workingRadius(profile.getWorkingRadius())
+                   .verificationDocuments(profile.getVerificationDocuments())
+                   .rejectionReason(profile.getRejectionReason())
+                   .approvedAt(profile.getApprovedAt())
+                   .approvedBy(profile.getApprovedBy());
+
+            // Get approved by username if available
+            if (profile.getApprovedBy() != null) {
+                User approver = userRepository.findById(profile.getApprovedBy()).orElse(null);
+                if (approver != null) {
+                    builder.approvedByUsername(approver.getUsername());
+                }
+            }
 
             // Get skills list
             List<TechnicianSkill> technicianSkills = technicianSkillRepository.findByTechnicianProfile(profile);

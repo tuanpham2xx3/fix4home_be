@@ -102,6 +102,66 @@ public class AdminController {
                 ApiResponse.success("User deleted successfully", null));
     }
 
+    // ==================== TECHNICIAN APPROVAL MANAGEMENT ====================
+
+    @GetMapping("/technicians/pending")
+    @Operation(summary = "Get pending technician applications", 
+               description = "Admin views all technician applications awaiting approval")
+    public ResponseEntity<ApiResponse<Page<TechnicianApprovalDTO>>> getPendingTechnicians(
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "Sort field") @RequestParam(defaultValue = "createdAt") String sortBy,
+            @Parameter(description = "Sort direction") @RequestParam(defaultValue = "desc") String sortDir) {
+        log.info("Admin fetching pending technician applications - page: {}, size: {}", page, size);
+        
+        Page<TechnicianApprovalDTO> pendingTechnicians = adminService.getPendingTechniciansWithPagination(page, size, sortBy, sortDir);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Pending technician applications retrieved successfully", pendingTechnicians));
+    }
+
+    @GetMapping("/technicians/{userId}/approval-details")
+    @Operation(summary = "Get technician approval details", 
+               description = "Admin views detailed information about a technician application")
+    public ResponseEntity<ApiResponse<TechnicianApprovalDTO>> getTechnicianApprovalDetails(
+            @Parameter(description = "Technician User ID") @PathVariable Long userId) {
+        log.info("Admin viewing technician approval details for user ID: {}", userId);
+        
+        TechnicianApprovalDTO details = adminService.getTechnicianApprovalDetails(userId);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Technician approval details retrieved successfully", details));
+    }
+
+    @PostMapping("/technicians/{userId}/approve")
+    @Operation(summary = "Approve technician application", 
+               description = "Admin approves a technician application")
+    public ResponseEntity<ApiResponse<TechnicianApprovalDTO>> approveTechnician(
+            @Parameter(description = "Technician User ID") @PathVariable Long userId,
+            @Valid @RequestBody ApproveTechnicianRequest request) {
+        log.info("Admin approving technician application for user ID: {}", userId);
+        
+        TechnicianApprovalDTO approvedTechnician = adminService.approveTechnicianApplication(userId, request);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Technician application approved successfully", approvedTechnician));
+    }
+
+    @PostMapping("/technicians/{userId}/reject")
+    @Operation(summary = "Reject technician application", 
+               description = "Admin rejects a technician application with reason")
+    public ResponseEntity<ApiResponse<TechnicianApprovalDTO>> rejectTechnician(
+            @Parameter(description = "Technician User ID") @PathVariable Long userId,
+            @Valid @RequestBody RejectTechnicianRequest request) {
+        log.info("Admin rejecting technician application for user ID: {} with reason: {}", 
+                 userId, request.getRejectionReason());
+        
+        TechnicianApprovalDTO rejectedTechnician = adminService.rejectTechnicianApplication(userId, request);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Technician application rejected successfully", rejectedTechnician));
+    }
+
     // ==================== BULK OPERATIONS ====================
 
     @PostMapping("/bulk-operations")

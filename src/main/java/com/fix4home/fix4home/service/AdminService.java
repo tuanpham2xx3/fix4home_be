@@ -211,6 +211,116 @@ public class AdminService extends BaseService {
         userRepository.delete(user);
     }
 
+    // ==================== TECHNICIAN APPROVAL MANAGEMENT ====================
+
+    @Transactional(readOnly = true)
+    public List<TechnicianApprovalDTO> getPendingTechnicians() {
+        logBusinessOperation("GET_PENDING_TECHNICIANS");
+        requireRole(Role.ADMIN);
+
+        List<TechnicianProfile> pendingProfiles = technicianProfileRepository.findByStatus(UserStatus.PENDING_APPROVAL);
+        return pendingProfiles.stream()
+                .map(this::convertToTechnicianApprovalDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<TechnicianApprovalDTO> getPendingTechniciansWithPagination(int page, int size, String sortBy, String sortDir) {
+        logBusinessOperation("GET_PENDING_TECHNICIANS_PAGINATED");
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
+
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
+                   Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<TechnicianProfile> profilePage = technicianProfileRepository.findByStatus(UserStatus.PENDING_APPROVAL, pageable);
+        
+        return profilePage.map(this::convertToTechnicianApprovalDTO);
+    }
+
+    @Transactional
+    public TechnicianApprovalDTO approveTechnicianApplication(Long userId, ApproveTechnicianRequest request) {
+        logBusinessOperation("APPROVE_TECHNICIAN", "userId=" + userId);
+        requireRole(Role.ADMIN);
+
+        validatePositiveId(userId, "userId");
+        validateRequired(request, "request");
+
+        User technician = findUserById(userId);
+        
+        if (technician.getRole() != Role.TECHNICIAN) {
+            throw new BusinessValidationException("User is not a technician");
+        }
+
+        TechnicianProfile profile = findTechnicianProfileByUser(technician);
+        
+        if (profile.getStatus() != UserStatus.PENDING_APPROVAL) {
+            throw new BusinessValidationException("Technician is not pending approval. Current status: " + profile.getStatus());
+        }
+
+        // Update approval status
+        profile.setStatus(UserStatus.ACTIVE);
+        profile.setApprovedAt(LocalDateTime.now());
+        profile.setApprovedBy(getCurrentUser().getId());
+        profile.setRejectionReason(null); // Clear any previous rejection reason
+
+        TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
+        
+        return convertToTechnicianApprovalDTO(savedProfile);
+    }
+
+    @Transactional
+    public TechnicianApprovalDTO rejectTechnicianApplication(Long userId, RejectTechnicianRequest request) {
+        logBusinessOperation("REJECT_TECHNICIAN", "userId=" + userId);
+        requireRole(Role.ADMIN);
+
+        validatePositiveId(userId, "userId");
+        validateRequired(request, "request");
+        validateRequired(request.getRejectionReason(), "rejectionReason");
+
+        User technician = findUserById(userId);
+        
+        if (technician.getRole() != Role.TECHNICIAN) {
+            throw new BusinessValidationException("User is not a technician");
+        }
+
+        TechnicianProfile profile = findTechnicianProfileByUser(technician);
+        
+        if (profile.getStatus() != UserStatus.PENDING_APPROVAL) {
+            throw new BusinessValidationException("Technician is not pending approval. Current status: " + profile.getStatus());
+        }
+
+        // Update rejection status
+        profile.setStatus(UserStatus.REJECTED);
+        profile.setRejectionReason(request.getRejectionReason());
+        profile.setApprovedAt(LocalDateTime.now()); // Set timestamp when decision was made
+        profile.setApprovedBy(getCurrentUser().getId());
+
+        TechnicianProfile savedProfile = technicianProfileRepository.save(profile);
+        
+        return convertToTechnicianApprovalDTO(savedProfile);
+    }
+
+    @Transactional(readOnly = true)
+    public TechnicianApprovalDTO getTechnicianApprovalDetails(Long userId) {
+        logBusinessOperation("GET_TECHNICIAN_APPROVAL_DETAILS", "userId=" + userId);
+        requireRole(Role.ADMIN);
+
+        validatePositiveId(userId, "userId");
+
+        User technician = findUserById(userId);
+        
+        if (technician.getRole() != Role.TECHNICIAN) {
+            throw new BusinessValidationException("User is not a technician");
+        }
+
+        TechnicianProfile profile = findTechnicianProfileByUser(technician);
+        return convertToTechnicianApprovalDTO(profile);
+    }
+
     // ==================== BULK OPERATIONS ====================
 
     @Transactional
@@ -370,6 +480,8 @@ public class AdminService extends BaseService {
         
         TechnicianProfile profile = findTechnicianProfileByUser(user);
         profile.setStatus(UserStatus.ACTIVE);
+        profile.setApprovedAt(LocalDateTime.now());
+        profile.setApprovedBy(getCurrentUser().getId());
         technicianProfileRepository.save(profile);
     }
 
@@ -380,8 +492,12 @@ public class AdminService extends BaseService {
             throw new BusinessValidationException("User is not a technician");
         }
         
-        user.setStatus(UserStatus.INACTIVE);
-        userRepository.save(user);
+        TechnicianProfile profile = findTechnicianProfileByUser(user);
+        profile.setStatus(UserStatus.REJECTED);
+        profile.setRejectionReason("Rejected by bulk operation");
+        profile.setApprovedAt(LocalDateTime.now());
+        profile.setApprovedBy(getCurrentUser().getId());
+        technicianProfileRepository.save(profile);
     }
 
     private void activateService(Long serviceId) {
@@ -466,6 +582,38 @@ public class AdminService extends BaseService {
 
         builder.totalServiceRequests(totalRequests)
                .completedServiceRequests(completedRequests);
+
+        return builder.build();
+    }
+
+    private TechnicianApprovalDTO convertToTechnicianApprovalDTO(TechnicianProfile profile) {
+        User user = profile.getUser();
+        
+        TechnicianApprovalDTO.TechnicianApprovalDTOBuilder builder = TechnicianApprovalDTO.builder()
+                .userId(user.getId())
+                .profileId(profile.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .phoneNumber(user.getPhoneNumber())
+                .fullName(profile.getFullName())
+                .skills(profile.getSkills())
+                .experience(profile.getExperience())
+                .rating(profile.getRating())
+                .status(profile.getStatus())
+                .verificationDocuments(profile.getVerificationDocuments())
+                .rejectionReason(profile.getRejectionReason())
+                .approvedAt(profile.getApprovedAt())
+                .approvedBy(profile.getApprovedBy())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt());
+
+        // Get approved by username if available
+        if (profile.getApprovedBy() != null) {
+            User approver = userRepository.findById(profile.getApprovedBy()).orElse(null);
+            if (approver != null) {
+                builder.approvedByUsername(approver.getUsername());
+            }
+        }
 
         return builder.build();
     }

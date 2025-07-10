@@ -133,8 +133,10 @@ public class AuthService extends BaseService {
         if (user.getRole() == Role.TECHNICIAN) {
             TechnicianProfile techProfile = findTechnicianProfileByUser(user);
             
-            if (techProfile.getStatus() == UserStatus.INACTIVE) {
+            if (techProfile.getStatus() == UserStatus.PENDING_APPROVAL) {
                 throw AccountNotActiveException.pendingApproval();
+            } else if (techProfile.getStatus() == UserStatus.REJECTED) {
+                throw AccountNotActiveException.withStatus(UserStatus.REJECTED);
             }
         }
 
@@ -146,7 +148,7 @@ public class AuthService extends BaseService {
 
     private UserStatus determineUserStatus(Role role) {
         // Technician needs admin approval, others are active immediately
-        return role == Role.TECHNICIAN ? UserStatus.INACTIVE : UserStatus.ACTIVE;
+        return role == Role.TECHNICIAN ? UserStatus.PENDING_APPROVAL : UserStatus.ACTIVE;
     }
 
     private void createUserProfile(User user, RegisterRequest request) {
@@ -169,7 +171,7 @@ public class AuthService extends BaseService {
                         .skills(request.getSkills())
                         .experience(request.getExperience())
                         .rating(0.0f)
-                        .status(UserStatus.INACTIVE) // Pending approval
+                        .status(UserStatus.PENDING_APPROVAL) // Pending approval
                         .build();
                 technicianProfileRepository.save(technicianProfile);
             }

@@ -37,7 +37,7 @@ public class TechnicianProfile {
     
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    private UserStatus status = UserStatus.ACTIVE;
+    private UserStatus status = UserStatus.PENDING_APPROVAL;
     
     // Online/Offline Status and Location fields
     @Column(name = "is_online", nullable = false)
@@ -59,4 +59,17 @@ public class TechnicianProfile {
     @Column(name = "working_radius")
     @Builder.Default
     private Integer workingRadius = 10; // Default 10km working radius
+    
+    // Technician Approval Process fields
+    @Column(name = "verification_documents", length = 1000)
+    private String verificationDocuments; // Link tài liệu xác minh
+    
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason; // Lý do từ chối
+    
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt; // Thời gian phê duyệt
+    
+    @Column(name = "approved_by")
+    private Long approvedBy; // ID Admin phê duyệt
 } 
