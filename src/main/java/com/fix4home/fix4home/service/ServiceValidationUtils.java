@@ -197,4 +197,76 @@ public class ServiceValidationUtils {
             throw new BusinessValidationException(fieldName + " must be a positive number");
         }
     }
+
+    // ==================== SERVICE POST VALIDATIONS ====================
+
+    /**
+     * Validate service post is available for responses
+     */
+    public static void validateServicePostAvailable(ServicePost servicePost) {
+        if (!servicePost.canReceiveResponses()) {
+            if (servicePost.isExpired()) {
+                throw ServicePostExpiredException.withId(servicePost.getId(), servicePost.getExpiresAt());
+            }
+            if (servicePost.getResponseCount() >= servicePost.getMaxTechnicians()) {
+                throw ServicePostNotAvailableException.maxResponsesReached(servicePost.getId());
+            }
+            throw ServicePostNotAvailableException.wrongStatus(servicePost.getId(), servicePost.getStatus().toString());
+        }
+    }
+
+    /**
+     * Validate technician hasn't already responded to service post
+     */
+    public static void validateTechnicianNotResponded(ServicePost servicePost, User technician, 
+                                                     boolean alreadyResponded) {
+        if (alreadyResponded) {
+            throw ServicePostAlreadyRespondedException.withIds(servicePost.getId(), technician.getId());
+        }
+    }
+
+    /**
+     * Validate service post ownership
+     */
+    public static void validateServicePostOwnership(ServicePost servicePost, User user) {
+        if (!servicePost.getCustomer().getId().equals(user.getId())) {
+            throw new SecurityException("Access denied: Service post does not belong to user");
+        }
+    }
+
+    /**
+     * Validate service post can be updated by customer
+     */
+    public static void validateServicePostCanBeUpdated(ServicePost servicePost) {
+        if (servicePost.getStatus() == com.fix4home.fix4home.model.enums.ServicePostStatus.COMPLETED ||
+            servicePost.getStatus() == com.fix4home.fix4home.model.enums.ServicePostStatus.CANCELLED ||
+            servicePost.getStatus() == com.fix4home.fix4home.model.enums.ServicePostStatus.EXPIRED) {
+            throw new BusinessValidationException("Cannot update service post in " + servicePost.getStatus() + " status");
+        }
+    }
+
+    /**
+     * Validate service post response can be selected
+     */
+    public static void validateResponseCanBeSelected(ServicePost servicePost, ServicePostResponse response) {
+        // Check if post belongs to current customer
+        validateServicePostOwnership(servicePost, response.getServicePost().getCustomer());
+        
+        // Check if post is in correct status
+        if (servicePost.getStatus() != com.fix4home.fix4home.model.enums.ServicePostStatus.POSTED &&
+            servicePost.getStatus() != com.fix4home.fix4home.model.enums.ServicePostStatus.RESPONSES_RECEIVED) {
+            throw new BusinessValidationException("Cannot select response for service post in " + servicePost.getStatus() + " status");
+        }
+    }
+
+    /**
+     * Validate service post can be cancelled
+     */
+    public static void validateServicePostCanBeCancelled(ServicePost servicePost) {
+        if (servicePost.getStatus() == com.fix4home.fix4home.model.enums.ServicePostStatus.COMPLETED ||
+            servicePost.getStatus() == com.fix4home.fix4home.model.enums.ServicePostStatus.CANCELLED ||
+            servicePost.getStatus() == com.fix4home.fix4home.model.enums.ServicePostStatus.IN_PROGRESS) {
+            throw new BusinessValidationException("Cannot cancel service post in " + servicePost.getStatus() + " status");
+        }
+    }
 } 
