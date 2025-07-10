@@ -651,7 +651,7 @@ public class ServicePostService extends BaseService {
                 .id(servicePost.getId())
                 .title(servicePost.getTitle())
                 .serviceName(servicePost.getService().getName())
-                .address(servicePost.getAddress().getAddress())
+                .address(servicePost.getAddress().getAddressLine())
                 .estimatedBudget(servicePost.getEstimatedBudget())
                 .preferredTime(servicePost.getPreferredTime())
                 .type(servicePost.getType())
@@ -700,11 +700,10 @@ public class ServicePostService extends BaseService {
     private AddressDTO convertAddressToDTO(Address address) {
         return AddressDTO.builder()
                 .id(address.getId())
-                .address(address.getAddress())
+                .addressLine(address.getAddressLine())
                 .ward(address.getWard())
                 .district(address.getDistrict())
                 .city(address.getCity())
-                .isDefault(address.getIsDefault())
                 .build();
     }
 } 
