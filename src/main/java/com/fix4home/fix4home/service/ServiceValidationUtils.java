@@ -67,8 +67,11 @@ public class ServiceValidationUtils {
                            newStatus == ServiceRequestStatus.CANCELLED;
             case ASSIGNED -> newStatus == ServiceRequestStatus.IN_PROGRESS || 
                             newStatus == ServiceRequestStatus.CANCELLED;
-            case IN_PROGRESS -> newStatus == ServiceRequestStatus.DONE;
-            case DONE, CANCELLED -> false; // Terminal states
+            case IN_PROGRESS -> newStatus == ServiceRequestStatus.DONE ||
+                               newStatus == ServiceRequestStatus.COMPLAINING;
+            case DONE -> newStatus == ServiceRequestStatus.COMPLAINING;
+            case COMPLAINING -> newStatus == ServiceRequestStatus.COMPLAITED;
+            case CANCELLED, COMPLAITED -> false; // Terminal states
         };
 
         if (!validTransition) {
@@ -267,6 +270,69 @@ public class ServiceValidationUtils {
             servicePost.getStatus() == com.fix4home.fix4home.model.enums.ServicePostStatus.CANCELLED ||
             servicePost.getStatus() == com.fix4home.fix4home.model.enums.ServicePostStatus.IN_PROGRESS) {
             throw new BusinessValidationException("Cannot cancel service post in " + servicePost.getStatus() + " status");
+        }
+    }
+
+    // ==================== COMPLAINT VALIDATIONS ====================
+
+    /**
+     * Validate service request is eligible for complaint
+     */
+    public static void validateComplaintEligibility(ServiceRequest serviceRequest) {
+        if (serviceRequest.getStatus() != ServiceRequestStatus.DONE && 
+            serviceRequest.getStatus() != ServiceRequestStatus.CANCELLED) {
+            throw new BusinessValidationException("Complaints can only be filed for completed or cancelled service requests");
+        }
+    }
+
+    /**
+     * Validate complaint participants
+     */
+    public static void validateComplaintParticipants(ServiceRequest serviceRequest, User complainant, User accused) {
+        // Cannot complain against yourself
+        if (complainant.getId().equals(accused.getId())) {
+            throw new BusinessValidationException("You cannot file a complaint against yourself");
+        }
+
+        // Check if complainant is involved in the service request
+        if (!complainant.getId().equals(serviceRequest.getCustomer().getId()) && 
+            (serviceRequest.getTechnician() == null || !complainant.getId().equals(serviceRequest.getTechnician().getId()))) {
+            throw new SecurityException("You can only file complaints for service requests you are involved in");
+        }
+
+        // Check if accused is involved in the service request
+        if (!accused.getId().equals(serviceRequest.getCustomer().getId()) && 
+            (serviceRequest.getTechnician() == null || !accused.getId().equals(serviceRequest.getTechnician().getId()))) {
+            throw new BusinessValidationException("You can only file complaints against users involved in the service request");
+        }
+    }
+
+    /**
+     * Validate complaint does not already exist
+     */
+    public static void validateNoExistingComplaint(boolean complaintExists) {
+        if (complaintExists) {
+            throw new BusinessValidationException("A complaint already exists for this service request and complainant");
+        }
+    }
+
+    /**
+     * Validate complaint can be updated to complaining status
+     */
+    public static void validateCanComplain(ServiceRequest serviceRequest) {
+        if (serviceRequest.getStatus() == ServiceRequestStatus.CANCELLED ||
+            serviceRequest.getStatus() == ServiceRequestStatus.COMPLAINING ||
+            serviceRequest.getStatus() == ServiceRequestStatus.COMPLAITED) {
+            throw InvalidServiceRequestStatusException.invalidTransition(serviceRequest.getStatus(), ServiceRequestStatus.COMPLAINING);
+        }
+    }
+
+    /**
+     * Validate complaint can be resolved
+     */
+    public static void validateComplaintCanBeResolved(ServiceRequest serviceRequest) {
+        if (serviceRequest.getStatus() != ServiceRequestStatus.COMPLAINING) {
+            throw new BusinessValidationException("Can only resolve complaints for service requests in COMPLAINING status");
         }
     }
 } 

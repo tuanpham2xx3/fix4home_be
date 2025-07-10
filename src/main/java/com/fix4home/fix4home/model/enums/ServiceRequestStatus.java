@@ -5,5 +5,7 @@ public enum ServiceRequestStatus {
     ASSIGNED,
     IN_PROGRESS,
     DONE,
-    CANCELLED
+    CANCELLED,
+    COMPLAINING,  // Service request is under complaint/dispute
+    COMPLAITED    // Complaint has been processed (resolved or rejected)
 } 
