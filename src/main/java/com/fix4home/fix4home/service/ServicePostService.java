@@ -1,16 +1,20 @@
 package com.fix4home.fix4home.service;
 
 import com.fix4home.fix4home.exception.*;
+import com.fix4home.fix4home.model.dto.common.ServiceSearchRequest;
 import com.fix4home.fix4home.model.dto.customer.AddressDTO;
 import com.fix4home.fix4home.model.dto.service.ServiceDTO;
 import com.fix4home.fix4home.model.dto.servicepost.*;
 import com.fix4home.fix4home.model.entity.*;
 import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.model.enums.ServicePostStatus;
+import com.fix4home.fix4home.model.enums.ServicePostType;
+import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -18,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Arrays;
@@ -559,6 +564,334 @@ public class ServicePostService extends BaseService {
         return posts.stream()
                 .map(this::convertToSummaryDTO)
                 .toList();
+    }
+    
+    // ==================== ADVANCED SEARCH OPERATIONS ====================
+    
+    @Transactional(readOnly = true)
+    public List<ServicePostSearchResultDTO> searchServicePostsAdvanced(ServiceSearchRequest searchRequest) {
+        logBusinessOperation("SEARCH_SERVICE_POSTS_ADVANCED", "criteria=" + searchRequest.toString());
+        
+        // Validate search request
+        if (!searchRequest.isValid()) {
+            throw new BusinessValidationException("Invalid search criteria");
+        }
+        
+        // Create pageable for database query
+        Sort sort = buildSortForServicePostSearch(searchRequest.getSortBy(), searchRequest.getSortDirection());
+        Pageable pageable = PageRequest.of(searchRequest.getPage(), searchRequest.getSize(), sort);
+        
+        // Get active statuses
+        List<ServicePostStatus> activeStatuses = Arrays.asList(
+            ServicePostStatus.POSTED, 
+            ServicePostStatus.RESPONSES_RECEIVED
+        );
+        
+        Page<ServicePost> servicePostsPage;
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Choose search strategy based on filters
+        if (searchRequest.hasLocationFilter()) {
+            // Location-based search with distance calculation
+            servicePostsPage = searchServicePostsWithLocation(searchRequest, activeStatuses, now, pageable);
+        } else {
+            // Database-based filtering
+            servicePostsPage = searchServicePostsWithFilters(searchRequest, activeStatuses, now, pageable);
+        }
+        
+        // Convert to search result DTOs
+        return servicePostsPage.getContent().stream()
+                .map(post -> convertToServicePostSearchResultDTO(post, searchRequest))
+                .toList();
+    }
+    
+    private Page<ServicePost> searchServicePostsWithLocation(ServiceSearchRequest searchRequest, 
+                                                            List<ServicePostStatus> activeStatuses, 
+                                                            LocalDateTime now, 
+                                                            Pageable pageable) {
+        // Get service posts with location data first
+        List<ServicePost> candidates = servicePostRepository.findPostsWithLocationCoordinates(activeStatuses, now);
+        
+        // Filter by distance and other criteria
+        List<ServicePost> filteredCandidates = candidates.stream()
+                .filter(post -> {
+                    // Distance check
+                    if (searchRequest.hasLocationFilter() && post.getAddress().getLatitude() != null && post.getAddress().getLongitude() != null) {
+                        double distance = calculateDistance(
+                                searchRequest.getLatitude(), searchRequest.getLongitude(),
+                                post.getAddress().getLatitude().doubleValue(), post.getAddress().getLongitude().doubleValue());
+                        if (distance > searchRequest.getRadius()) {
+                            return false;
+                        }
+                    }
+                    
+                    // Budget check
+                    if (searchRequest.hasPriceFilter() && post.getEstimatedBudget() != null) {
+                        if (searchRequest.getMinPrice() != null && post.getEstimatedBudget().compareTo(searchRequest.getMinPrice()) < 0) return false;
+                        if (searchRequest.getMaxPrice() != null && post.getEstimatedBudget().compareTo(searchRequest.getMaxPrice()) > 0) return false;
+                    }
+                    
+                    // Service filter
+                    if (searchRequest.hasServiceFilter()) {
+                        if (!searchRequest.getServiceIds().contains(post.getService().getId())) return false;
+                    }
+                    
+                    return true;
+                })
+                .sorted((a, b) -> {
+                    // Sort by urgency first, then by creation time
+                    if (a.getType() == ServicePostType.URGENT && b.getType() != ServicePostType.URGENT) return -1;
+                    if (a.getType() != ServicePostType.URGENT && b.getType() == ServicePostType.URGENT) return 1;
+                    return b.getCreatedAt().compareTo(a.getCreatedAt());
+                })
+                .toList();
+        
+        // Apply pagination manually
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), filteredCandidates.size());
+        List<ServicePost> paginatedResults = start < filteredCandidates.size() ? 
+                filteredCandidates.subList(start, end) : List.of();
+        
+        return new PageImpl<>(paginatedResults, pageable, filteredCandidates.size());
+    }
+    
+    private Page<ServicePost> searchServicePostsWithFilters(ServiceSearchRequest searchRequest, 
+                                                           List<ServicePostStatus> activeStatuses, 
+                                                           LocalDateTime now, 
+                                                           Pageable pageable) {
+        return servicePostRepository.findByAdvancedSearch(
+                searchRequest.getKeyword(),
+                searchRequest.getLocation(),
+                null, // type - will be handled separately if needed
+                searchRequest.getMinPrice(),
+                searchRequest.getMaxPrice(),
+                searchRequest.getServiceIds(),
+                activeStatuses,
+                now,
+                pageable
+        );
+    }
+    
+    private Sort buildSortForServicePostSearch(String sortBy, String sortDirection) {
+        Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ? 
+                Sort.Direction.DESC : Sort.Direction.ASC;
+        
+        return switch (sortBy.toLowerCase()) {
+            case "price", "budget" -> Sort.by(direction, "estimatedBudget");
+            case "time", "date" -> Sort.by(direction, "preferredTime");
+            case "created" -> Sort.by(direction, "createdAt");
+            case "expires" -> Sort.by(direction, "expiresAt");
+            case "distance" -> Sort.by(direction, "createdAt"); // Will be handled separately for location-based search
+            default -> Sort.by(direction, "createdAt");
+        };
+    }
+    
+    private ServicePostSearchResultDTO convertToServicePostSearchResultDTO(ServicePost post, ServiceSearchRequest searchRequest) {
+        // Calculate distance if location filter is provided
+        Double distanceKm = null;
+        if (searchRequest.hasLocationFilter() && post.getAddress().getLatitude() != null && post.getAddress().getLongitude() != null) {
+            distanceKm = calculateDistance(
+                    searchRequest.getLatitude(), searchRequest.getLongitude(),
+                    post.getAddress().getLatitude().doubleValue(), post.getAddress().getLongitude().doubleValue());
+        }
+        
+        // Get customer info
+        CustomerProfile customerProfile = customerProfileRepository.findByUser(post.getCustomer()).orElse(null);
+        String customerName = customerProfile != null ? customerProfile.getFullName() : null;
+        
+        // Calculate urgency
+        Integer urgencyHours = null;
+        if (post.getPreferredTime() != null) {
+            urgencyHours = (int) LocalDateTime.now().until(post.getPreferredTime(), java.time.temporal.ChronoUnit.HOURS);
+        }
+        
+        // Check if current technician has responded
+        Boolean hasResponded = false;
+        User currentUser = getCurrentUser();
+        if (currentUser != null && currentUser.getRole() == Role.TECHNICIAN) {
+            hasResponded = servicePostResponseRepository.existsByServicePostAndTechnician(post, currentUser);
+        }
+        
+        // Calculate relevance score
+        Double relevanceScore = calculateServicePostRelevanceScore(post, searchRequest);
+        
+        return ServicePostSearchResultDTO.builder()
+                .id(post.getId())
+                .title(post.getTitle())
+                .description(post.getDescription())
+                .type(post.getType())
+                .status(post.getStatus())
+                .customerId(post.getCustomer().getId())
+                .customerName(customerName)
+                .service(convertServiceToDTO(post.getService()))
+                .address(convertAddressToDTO(post.getAddress()))
+                .distanceKm(distanceKm)
+                .estimatedBudget(post.getEstimatedBudget())
+                .preferredTime(post.getPreferredTime())
+                .createdAt(post.getCreatedAt())
+                .expiresAt(post.getExpiresAt())
+                .urgencyHours(urgencyHours)
+                .responseCount(post.getResponseCount())
+                .maxTechnicians(post.getMaxTechnicians())
+                .hasResponded(hasResponded)
+                .relevanceScore(relevanceScore)
+                .isUrgent(post.getType() == ServicePostType.URGENT)
+                .isExpiringSoon(post.getExpiresAt() != null && post.getExpiresAt().isBefore(LocalDateTime.now().plusHours(24)))
+                .build();
+    }
+    
+    private Double calculateServicePostRelevanceScore(ServicePost post, ServiceSearchRequest searchRequest) {
+        double score = 0.0;
+        
+        // Urgency score (0-30 points)
+        if (post.getType() == ServicePostType.URGENT) {
+            score += 30;
+        }
+        
+        // Budget attractiveness score (0-25 points)
+        if (post.getEstimatedBudget() != null) {
+            // Higher budget gets higher score
+            double budgetScore = Math.min(25, post.getEstimatedBudget().doubleValue() / 100.0);
+            score += budgetScore;
+        }
+        
+        // Distance score (0-20 points) - closer is better
+        if (searchRequest.hasLocationFilter() && post.getAddress().getLatitude() != null && post.getAddress().getLongitude() != null) {
+            double distance = calculateDistance(
+                    searchRequest.getLatitude(), searchRequest.getLongitude(),
+                    post.getAddress().getLatitude().doubleValue(), post.getAddress().getLongitude().doubleValue());
+            double distanceScore = Math.max(0, (searchRequest.getRadius() - distance) / searchRequest.getRadius()) * 20;
+            score += distanceScore;
+        }
+        
+        // Time urgency score (0-15 points) - sooner preferred time gets higher score
+        if (post.getPreferredTime() != null) {
+            long hoursUntilPreferred = LocalDateTime.now().until(post.getPreferredTime(), java.time.temporal.ChronoUnit.HOURS);
+            if (hoursUntilPreferred > 0 && hoursUntilPreferred <= 48) {
+                double timeScore = Math.max(0, (48 - hoursUntilPreferred) / 48.0) * 15;
+                score += timeScore;
+            }
+        }
+        
+        // Competition level score (0-10 points) - fewer responses is better
+        if (post.getMaxTechnicians() != null && post.getMaxTechnicians() > 0) {
+            double competitionScore = Math.max(0, (post.getMaxTechnicians() - post.getResponseCount()) / (double) post.getMaxTechnicians()) * 10;
+            score += competitionScore;
+        }
+        
+        return score;
+    }
+    
+    @Transactional(readOnly = true)
+    public List<ServicePostSearchResultDTO> findHighValueServicePosts(BigDecimal minBudget, int limit) {
+        logBusinessOperation("FIND_HIGH_VALUE_SERVICE_POSTS", "minBudget=" + minBudget + ", limit=" + limit);
+        
+        List<ServicePostStatus> activeStatuses = Arrays.asList(
+            ServicePostStatus.POSTED, 
+            ServicePostStatus.RESPONSES_RECEIVED
+        );
+        
+        Pageable pageable = PageRequest.of(0, limit);
+        LocalDateTime now = LocalDateTime.now();
+        
+        Page<ServicePost> highValuePosts = servicePostRepository.findHighValuePosts(
+                minBudget, activeStatuses, now, pageable);
+        
+        ServiceSearchRequest dummyRequest = ServiceSearchRequest.builder().build();
+        
+        return highValuePosts.getContent().stream()
+                .map(post -> convertToServicePostSearchResultDTO(post, dummyRequest))
+                .toList();
+    }
+    
+    @Transactional(readOnly = true)
+    public List<ServicePostSearchResultDTO> findExpiringSoonPosts(int limit) {
+        logBusinessOperation("FIND_EXPIRING_SOON_POSTS", "limit=" + limit);
+        
+        List<ServicePostStatus> activeStatuses = Arrays.asList(
+            ServicePostStatus.POSTED, 
+            ServicePostStatus.RESPONSES_RECEIVED
+        );
+        
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiringSoonLimit = now.plusHours(24);
+        
+        List<ServicePost> expiringSoon = servicePostRepository.findExpiringSoonPosts(
+                activeStatuses, now, expiringSoonLimit);
+        
+        ServiceSearchRequest dummyRequest = ServiceSearchRequest.builder().build();
+        
+        return expiringSoon.stream()
+                .limit(limit)
+                .map(post -> convertToServicePostSearchResultDTO(post, dummyRequest))
+                .toList();
+    }
+    
+    @Transactional(readOnly = true)
+    public List<ServicePostSearchResultDTO> findServicePostsByCategory(List<Long> serviceIds, ServicePostType type, int limit) {
+        logBusinessOperation("FIND_SERVICE_POSTS_BY_CATEGORY", "serviceIds=" + serviceIds + ", type=" + type + ", limit=" + limit);
+        
+        List<ServicePostStatus> activeStatuses = Arrays.asList(
+            ServicePostStatus.POSTED, 
+            ServicePostStatus.RESPONSES_RECEIVED
+        );
+        
+        Pageable pageable = PageRequest.of(0, limit);
+        LocalDateTime now = LocalDateTime.now();
+        
+        Page<ServicePost> categoryPosts = servicePostRepository.findByServiceCategoryWithFilters(
+                serviceIds, type, activeStatuses, now, pageable);
+        
+        ServiceSearchRequest dummyRequest = ServiceSearchRequest.builder().build();
+        
+        return categoryPosts.getContent().stream()
+                .map(post -> convertToServicePostSearchResultDTO(post, dummyRequest))
+                .toList();
+    }
+    
+    @Transactional(readOnly = true)
+    public List<ServicePostSearchResultDTO> findAvailablePostsForTechnician(Long technicianId, int limit) {
+        logBusinessOperation("FIND_AVAILABLE_POSTS_FOR_TECHNICIAN", "technicianId=" + technicianId + ", limit=" + limit);
+        
+        List<ServicePostStatus> activeStatuses = Arrays.asList(
+            ServicePostStatus.POSTED, 
+            ServicePostStatus.RESPONSES_RECEIVED
+        );
+        
+        Pageable pageable = PageRequest.of(0, limit);
+        LocalDateTime now = LocalDateTime.now();
+        
+        Page<ServicePost> availablePosts = servicePostRepository.findAvailablePostsForTechnician(
+                technicianId, activeStatuses, now, pageable);
+        
+        ServiceSearchRequest dummyRequest = ServiceSearchRequest.builder().build();
+        
+        return availablePosts.getContent().stream()
+                .map(post -> convertToServicePostSearchResultDTO(post, dummyRequest))
+                .toList();
+    }
+    
+    /**
+     * Calculate distance between two points using Haversine formula
+     * @param lat1 Latitude of first point
+     * @param lon1 Longitude of first point
+     * @param lat2 Latitude of second point
+     * @param lon2 Longitude of second point
+     * @return Distance in kilometers
+     */
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        final double EARTH_RADIUS = 6371.0; // Earth radius in kilometers
+
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return EARTH_RADIUS * c;
     }
 
     // ==================== HELPER METHODS ====================

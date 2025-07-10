@@ -1,9 +1,11 @@
 package com.fix4home.fix4home.controller;
 
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
+import com.fix4home.fix4home.model.dto.common.AdvancedSearchResultDTO;
+import com.fix4home.fix4home.model.dto.common.ServiceSearchRequest;
 import com.fix4home.fix4home.model.dto.technician.*;
-import com.fix4home.fix4home.service.TechnicianService;
 import com.fix4home.fix4home.security.SecurityConstants;
+import com.fix4home.fix4home.service.TechnicianService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -159,6 +161,67 @@ public class TechnicianController {
                 latitude, longitude, radiusKm, onlineOnly, serviceId);
         return ResponseEntity.ok(ApiResponse.success("Nearby technicians found successfully", nearbyTechnicians));
     }
+    
+    // ==================== ADVANCED SEARCH ENDPOINTS ====================
+    
+    @PostMapping("/search/advanced")
+    @Operation(summary = "Advanced technician search", description = "Search technicians with comprehensive filtering options")
+    public ResponseEntity<ApiResponse<AdvancedSearchResultDTO>> performAdvancedSearch(
+            @Valid @RequestBody ServiceSearchRequest searchRequest) {
+        log.info("Request for advanced technician search with criteria: {}", searchRequest);
+        AdvancedSearchResultDTO results = technicianService.performAdvancedSearch(searchRequest);
+        return ResponseEntity.ok(ApiResponse.success("Advanced search completed successfully", results));
+    }
+    
+    @PostMapping("/search/detailed")
+    @Operation(summary = "Detailed technician search", description = "Search technicians with detailed result information")
+    public ResponseEntity<ApiResponse<List<TechnicianSearchResultDTO>>> searchTechniciansAdvanced(
+            @Valid @RequestBody ServiceSearchRequest searchRequest) {
+        log.info("Request for detailed technician search with criteria: {}", searchRequest);
+        List<TechnicianSearchResultDTO> technicians = technicianService.searchTechniciansAdvanced(searchRequest);
+        return ResponseEntity.ok(ApiResponse.success("Detailed technician search completed", technicians));
+    }
+    
+    @GetMapping("/search/top-rated")
+    @Operation(summary = "Find top rated technicians", description = "Find top rated technicians with minimum review count")
+    public ResponseEntity<ApiResponse<List<TechnicianSearchResultDTO>>> findTopRatedTechnicians(
+            @Parameter(description = "Minimum number of reviews required")
+            @RequestParam(defaultValue = "5") int minReviewCount,
+            @Parameter(description = "Maximum number of results")
+            @RequestParam(defaultValue = "20") int limit) {
+        log.info("Request to find top rated technicians with minReviews: {}, limit: {}", minReviewCount, limit);
+        List<TechnicianSearchResultDTO> topRated = technicianService.findTopRatedTechniciansAdvanced(minReviewCount, limit);
+        return ResponseEntity.ok(ApiResponse.success("Top rated technicians found successfully", topRated));
+    }
+    
+    @GetMapping("/search/experienced")
+    @Operation(summary = "Find experienced technicians", description = "Find technicians with minimum experience level")
+    public ResponseEntity<ApiResponse<List<TechnicianSearchResultDTO>>> findExperiencedTechnicians(
+            @Parameter(description = "Minimum years of experience")
+            @RequestParam(defaultValue = "2") int minExperience,
+            @Parameter(description = "Maximum number of results")
+            @RequestParam(defaultValue = "20") int limit) {
+        log.info("Request to find experienced technicians with minExperience: {} years, limit: {}", minExperience, limit);
+        List<TechnicianSearchResultDTO> experienced = technicianService.findExperiencedTechnicians(minExperience, limit);
+        return ResponseEntity.ok(ApiResponse.success("Experienced technicians found successfully", experienced));
+    }
+    
+    @GetMapping("/search/available-nearby")
+    @Operation(summary = "Find available technicians nearby", description = "Find online technicians near specified location")
+    public ResponseEntity<ApiResponse<List<TechnicianSearchResultDTO>>> findAvailableTechniciansNearby(
+            @Parameter(description = "Latitude coordinate")
+            @RequestParam Double latitude,
+            @Parameter(description = "Longitude coordinate") 
+            @RequestParam Double longitude,
+            @Parameter(description = "Search radius in kilometers")
+            @RequestParam(defaultValue = "10") Integer radiusKm,
+            @Parameter(description = "Minimum working radius filter (optional)")
+            @RequestParam(required = false) Integer workingRadiusFilter) {
+        log.info("Request to find available technicians nearby at lat: {}, lng: {}, radius: {}km", latitude, longitude, radiusKm);
+        List<TechnicianSearchResultDTO> availableTechnicians = technicianService.findAvailableTechniciansNearby(
+                latitude, longitude, radiusKm, workingRadiusFilter);
+        return ResponseEntity.ok(ApiResponse.success("Available technicians nearby found successfully", availableTechnicians));
+    }
 
     // ==================== ADMIN TECHNICIAN MANAGEMENT ENDPOINTS ====================
 
@@ -239,9 +302,11 @@ public class TechnicianController {
     @Operation(summary = "Reject technician", description = "Reject technician registration (admin only)")
     public ResponseEntity<ApiResponse<TechnicianProfileDTO>> rejectTechnician(
             @Parameter(description = "User ID of the technician to reject")
-            @PathVariable Long userId) {
-        log.info("Admin request to reject technician with user ID: {}", userId);
-        TechnicianProfileDTO rejectedTechnician = technicianService.rejectTechnician(userId);
+            @PathVariable Long userId,
+            @Parameter(description = "Reason for rejection")
+            @RequestParam String rejectionReason) {
+        log.info("Admin request to reject technician with user ID: {} with reason: {}", userId, rejectionReason);
+        TechnicianProfileDTO rejectedTechnician = technicianService.rejectTechnician(userId, rejectionReason);
         return ResponseEntity.ok(ApiResponse.success("Technician rejected successfully", rejectedTechnician));
     }
 

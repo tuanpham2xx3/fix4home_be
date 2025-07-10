@@ -1,7 +1,10 @@
 package com.fix4home.fix4home.controller;
 
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
+import com.fix4home.fix4home.model.dto.common.ServiceSearchRequest;
 import com.fix4home.fix4home.model.dto.servicepost.*;
+import com.fix4home.fix4home.model.entity.User;
+import com.fix4home.fix4home.model.enums.ServicePostType;
 import com.fix4home.fix4home.security.SecurityConstants;
 import com.fix4home.fix4home.service.ServicePostService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,8 +17,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -222,6 +227,73 @@ public class ServicePostController {
         log.info("GET /api/v1/service-posts/urgent - Fetching urgent service posts");
         List<ServicePostSummaryDTO> posts = servicePostService.getUrgentServicePosts();
         return ResponseEntity.ok(ApiResponse.success("Urgent posts retrieved successfully", posts));
+    }
+    
+    // ==================== ADVANCED SEARCH ENDPOINTS ====================
+    
+    @PostMapping("/search/advanced")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
+    @Operation(summary = "Advanced service post search", description = "Search service posts with comprehensive filtering options")
+    public ResponseEntity<ApiResponse<List<ServicePostSearchResultDTO>>> searchServicePostsAdvanced(
+            @Valid @RequestBody ServiceSearchRequest searchRequest) {
+        log.info("POST /api/v1/service-posts/search/advanced - Advanced search with criteria: {}", searchRequest);
+        List<ServicePostSearchResultDTO> posts = servicePostService.searchServicePostsAdvanced(searchRequest);
+        return ResponseEntity.ok(ApiResponse.success("Advanced service post search completed", posts));
+    }
+    
+    @GetMapping("/search/high-value")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
+    @Operation(summary = "Find high value service posts", description = "Find service posts with budget above specified threshold")
+    public ResponseEntity<ApiResponse<List<ServicePostSearchResultDTO>>> findHighValueServicePosts(
+            @Parameter(description = "Minimum budget threshold")
+            @RequestParam BigDecimal minBudget,
+            @Parameter(description = "Maximum number of results")
+            @RequestParam(defaultValue = "20") int limit) {
+        log.info("GET /api/v1/service-posts/search/high-value - minBudget: {}, limit: {}", minBudget, limit);
+        List<ServicePostSearchResultDTO> posts = servicePostService.findHighValueServicePosts(minBudget, limit);
+        return ResponseEntity.ok(ApiResponse.success("High value service posts found successfully", posts));
+    }
+    
+    @GetMapping("/search/expiring-soon")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
+    @Operation(summary = "Find expiring soon service posts", description = "Find service posts expiring within 24 hours")
+    public ResponseEntity<ApiResponse<List<ServicePostSearchResultDTO>>> findExpiringSoonPosts(
+            @Parameter(description = "Maximum number of results")
+            @RequestParam(defaultValue = "20") int limit) {
+        log.info("GET /api/v1/service-posts/search/expiring-soon - limit: {}", limit);
+        List<ServicePostSearchResultDTO> posts = servicePostService.findExpiringSoonPosts(limit);
+        return ResponseEntity.ok(ApiResponse.success("Expiring soon service posts found successfully", posts));
+    }
+    
+    @GetMapping("/search/by-category")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
+    @Operation(summary = "Find service posts by category", description = "Find service posts by service category and type")
+    public ResponseEntity<ApiResponse<List<ServicePostSearchResultDTO>>> findServicePostsByCategory(
+            @Parameter(description = "Service IDs to filter by")
+            @RequestParam List<Long> serviceIds,
+            @Parameter(description = "Service post type filter (optional)")
+            @RequestParam(required = false) ServicePostType type,
+            @Parameter(description = "Maximum number of results")
+            @RequestParam(defaultValue = "20") int limit) {
+        log.info("GET /api/v1/service-posts/search/by-category - serviceIds: {}, type: {}, limit: {}", serviceIds, type, limit);
+        List<ServicePostSearchResultDTO> posts = servicePostService.findServicePostsByCategory(serviceIds, type, limit);
+        return ResponseEntity.ok(ApiResponse.success("Service posts by category found successfully", posts));
+    }
+    
+    @GetMapping("/search/available-for-me")
+    @PreAuthorize(SecurityConstants.HAS_TECHNICIAN_ROLE)
+    @Operation(summary = "Find available posts for current technician", description = "Find service posts available for current technician (excluding already responded)")
+    public ResponseEntity<ApiResponse<List<ServicePostSearchResultDTO>>> findAvailablePostsForMe(
+            @Parameter(description = "Maximum number of results")
+            @RequestParam(defaultValue = "20") int limit) {
+        log.info("GET /api/v1/service-posts/search/available-for-me - limit: {}", limit);
+        
+        // Get current technician ID from security context
+        User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long technicianId = currentUser.getId();
+        
+        List<ServicePostSearchResultDTO> posts = servicePostService.findAvailablePostsForTechnician(technicianId, limit);
+        return ResponseEntity.ok(ApiResponse.success("Available service posts for technician found successfully", posts));
     }
 
     // ==================== ADMIN ENDPOINTS ====================

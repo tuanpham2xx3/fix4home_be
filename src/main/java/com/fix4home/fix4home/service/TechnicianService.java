@@ -1,6 +1,8 @@
 package com.fix4home.fix4home.service;
 
 import com.fix4home.fix4home.exception.*;
+import com.fix4home.fix4home.model.dto.common.AdvancedSearchResultDTO;
+import com.fix4home.fix4home.model.dto.common.ServiceSearchRequest;
 import com.fix4home.fix4home.model.dto.technician.*;
 import com.fix4home.fix4home.model.entity.*;
 import com.fix4home.fix4home.model.enums.Role;
@@ -9,6 +11,7 @@ import com.fix4home.fix4home.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -17,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -577,5 +580,320 @@ public class TechnicianService extends BaseService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
         return EARTH_RADIUS * c;
+    }
+    
+    // ==================== ADVANCED SEARCH METHODS ====================
+    
+    @Transactional(readOnly = true)
+    public AdvancedSearchResultDTO performAdvancedSearch(ServiceSearchRequest searchRequest) {
+        logBusinessOperation("PERFORM_ADVANCED_SEARCH", "search=" + searchRequest.toString());
+        
+        long startTime = System.currentTimeMillis();
+        
+        // Validate search request
+        if (!searchRequest.isValid()) {
+            throw new BusinessValidationException("Invalid search criteria");
+        }
+        
+        // Build search results
+        List<TechnicianSearchResultDTO> technicians = searchTechniciansAdvanced(searchRequest);
+        
+        // Calculate pagination metadata
+        AdvancedSearchResultDTO.PaginationInfo pagination = buildPaginationInfo(searchRequest, technicians.size());
+        
+        // Calculate search metadata
+        AdvancedSearchResultDTO.SearchMetadata searchInfo = buildSearchMetadata(searchRequest, startTime);
+        
+        return AdvancedSearchResultDTO.builder()
+                .technicians(technicians)
+                .servicePosts(List.of()) // Will be implemented in ServicePostService
+                .pagination(pagination)
+                .searchInfo(searchInfo)
+                .build();
+    }
+    
+    @Transactional(readOnly = true)
+    public List<TechnicianSearchResultDTO> searchTechniciansAdvanced(ServiceSearchRequest searchRequest) {
+        logBusinessOperation("SEARCH_TECHNICIANS_ADVANCED", "criteria=" + searchRequest.toString());
+        
+        // Create pageable for database query
+        Sort sort = buildSortForTechnicianSearch(searchRequest.getSortBy(), searchRequest.getSortDirection());
+        Pageable pageable = PageRequest.of(searchRequest.getPage(), searchRequest.getSize(), sort);
+        
+        Page<TechnicianProfile> techniciansPage;
+        
+        // Choose search strategy based on filters
+        if (searchRequest.hasLocationFilter()) {
+            // Location-based search with distance calculation
+            techniciansPage = searchTechniciansWithLocation(searchRequest, pageable);
+        } else {
+            // Database-based filtering
+            techniciansPage = searchTechniciansWithFilters(searchRequest, pageable);
+        }
+        
+        // Convert to search result DTOs
+        return techniciansPage.getContent().stream()
+                .map(profile -> convertToTechnicianSearchResultDTO(profile, searchRequest))
+                .toList();
+    }
+    
+    private Page<TechnicianProfile> searchTechniciansWithLocation(ServiceSearchRequest searchRequest, Pageable pageable) {
+        // Get technicians with location data first
+        Page<TechnicianProfile> candidates = technicianProfileRepository.findTechniciansForLocationSearch(
+                UserStatus.ACTIVE, searchRequest.getAvailableNow(), pageable);
+        
+        // Filter by distance and other criteria
+        List<TechnicianProfile> filteredCandidates = candidates.getContent().stream()
+                .filter(profile -> {
+                    // Distance check
+                    if (searchRequest.hasLocationFilter()) {
+                        double distance = calculateDistance(
+                                searchRequest.getLatitude(), searchRequest.getLongitude(),
+                                profile.getCurrentLatitude(), profile.getCurrentLongitude());
+                        if (distance > searchRequest.getRadius()) {
+                            return false;
+                        }
+                    }
+                    
+                    // Rating check
+                    if (searchRequest.hasRatingFilter()) {
+                        Float rating = profile.getRating();
+                        if (rating == null) return false;
+                        if (searchRequest.getMinRating() != null && rating < searchRequest.getMinRating()) return false;
+                        if (searchRequest.getMaxRating() != null && rating > searchRequest.getMaxRating()) return false;
+                    }
+                    
+                    // Experience check (skip for now as experience is stored as String)
+                    // if (searchRequest.getMinExperienceYears() != null) {
+                    //     // Experience is stored as String, would need parsing
+                    // }
+                    
+                    return true;
+                })
+                .toList();
+        
+        return new PageImpl<>(filteredCandidates, pageable, candidates.getTotalElements());
+    }
+    
+    private Page<TechnicianProfile> searchTechniciansWithFilters(ServiceSearchRequest searchRequest, Pageable pageable) {
+        return technicianProfileRepository.findByAdvancedSearch(
+                searchRequest.getKeyword(),
+                searchRequest.getMinRating(),
+                searchRequest.getMaxRating(),
+                searchRequest.getLocation(),
+                searchRequest.getAvailableNow(),
+                searchRequest.getHasLocation(),
+                searchRequest.getSkillIds(),
+                UserStatus.ACTIVE,
+                pageable
+        );
+    }
+    
+    private Sort buildSortForTechnicianSearch(String sortBy, String sortDirection) {
+        Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ? 
+                Sort.Direction.DESC : Sort.Direction.ASC;
+        
+        return switch (sortBy.toLowerCase()) {
+            case "rating" -> Sort.by(direction, "rating");
+            case "experience" -> Sort.by(direction, "experienceYears");
+            case "name" -> Sort.by(direction, "fullName");
+            case "distance" -> Sort.by(direction, "currentLatitude"); // Will be handled separately for location-based search
+            default -> Sort.by(direction, "createdAt");
+        };
+    }
+    
+    private TechnicianSearchResultDTO convertToTechnicianSearchResultDTO(TechnicianProfile profile, ServiceSearchRequest searchRequest) {
+        // Calculate distance if location filter is provided
+        Double distanceKm = null;
+        if (searchRequest.hasLocationFilter() && profile.getCurrentLatitude() != null && profile.getCurrentLongitude() != null) {
+            distanceKm = calculateDistance(
+                    searchRequest.getLatitude(), searchRequest.getLongitude(),
+                    profile.getCurrentLatitude(), profile.getCurrentLongitude());
+        }
+        
+        // Get technician skills
+        List<TechnicianSkill> technicianSkills = technicianSkillRepository.findByTechnicianProfile(profile);
+        List<SkillDTO> skillList = technicianSkills.stream()
+                .map(ts -> convertToSkillDTO(ts.getSkill()))
+                .toList();
+        
+        // Calculate relevance score
+        Double relevanceScore = calculateTechnicianRelevanceScore(profile, searchRequest);
+        
+        return TechnicianSearchResultDTO.builder()
+                .userId(profile.getUser().getId())
+                .profileId(profile.getId())
+                .fullName(profile.getFullName())
+                .email(profile.getUser().getEmail())
+                .phoneNumber(profile.getUser().getPhoneNumber())
+                .rating(profile.getRating() != null ? profile.getRating().doubleValue() : null)
+                .experienceYears(null) // Experience is stored as String, would need parsing
+                .status(profile.getStatus())
+                .currentLatitude(profile.getCurrentLatitude())
+                .currentLongitude(profile.getCurrentLongitude())
+                .currentAddress(profile.getCurrentAddress())
+                .workingRadius(profile.getWorkingRadius())
+                .distanceKm(distanceKm)
+                .isOnline(profile.getIsOnline())
+                .lastSeenAt(profile.getLastSeenAt())
+                .skillList(skillList)
+                .description(profile.getSkills()) // Using skills field as description
+                .relevanceScore(relevanceScore)
+                .build();
+    }
+    
+    private Double calculateTechnicianRelevanceScore(TechnicianProfile profile, ServiceSearchRequest searchRequest) {
+        double score = 0.0;
+        
+        // Rating score (0-30 points)
+        if (profile.getRating() != null) {
+            score += (profile.getRating() / 5.0) * 30;
+        }
+        
+        // Distance score (0-25 points) - closer is better
+        if (searchRequest.hasLocationFilter() && profile.getCurrentLatitude() != null && profile.getCurrentLongitude() != null) {
+            double distance = calculateDistance(
+                    searchRequest.getLatitude(), searchRequest.getLongitude(),
+                    profile.getCurrentLatitude(), profile.getCurrentLongitude());
+            double distanceScore = Math.max(0, (searchRequest.getRadius() - distance) / searchRequest.getRadius()) * 25;
+            score += distanceScore;
+        }
+        
+        // Online status score (0-20 points)
+        if (Boolean.TRUE.equals(profile.getIsOnline())) {
+            score += 20;
+        }
+        
+        // Experience score (0-15 points) - Skip for now as experience is stored as String
+        // if (profile.getExperienceYears() != null) {
+        //     score += Math.min(15, profile.getExperienceYears() * 1.5);
+        // }
+        
+        // Skills match score (0-10 points)
+        if (searchRequest.hasSkillsFilter()) {
+            List<TechnicianSkill> technicianSkills = technicianSkillRepository.findByTechnicianProfile(profile);
+            long matchingSkills = technicianSkills.stream()
+                    .mapToLong(ts -> ts.getSkill().getId())
+                    .filter(skillId -> searchRequest.getSkillIds().contains(skillId))
+                    .count();
+            score += (matchingSkills / (double) searchRequest.getSkillIds().size()) * 10;
+        }
+        
+        return score;
+    }
+    
+    private AdvancedSearchResultDTO.PaginationInfo buildPaginationInfo(ServiceSearchRequest searchRequest, int resultSize) {
+        int totalPages = (int) Math.ceil(resultSize / (double) searchRequest.getSize());
+        
+        return AdvancedSearchResultDTO.PaginationInfo.builder()
+                .currentPage(searchRequest.getPage())
+                .totalPages(totalPages)
+                .totalElements(resultSize)
+                .size(searchRequest.getSize())
+                .hasNext(searchRequest.getPage() < totalPages - 1)
+                .hasPrevious(searchRequest.getPage() > 0)
+                .isFirst(searchRequest.getPage() == 0)
+                .isLast(searchRequest.getPage() == totalPages - 1)
+                .build();
+    }
+    
+    private AdvancedSearchResultDTO.SearchMetadata buildSearchMetadata(ServiceSearchRequest searchRequest, long startTime) {
+        long searchTime = System.currentTimeMillis() - startTime;
+        int filtersApplied = countAppliedFilters(searchRequest);
+        
+        AdvancedSearchResultDTO.SearchLocation searchLocation = null;
+        if (searchRequest.hasLocationFilter()) {
+            searchLocation = AdvancedSearchResultDTO.SearchLocation.builder()
+                    .latitude(searchRequest.getLatitude())
+                    .longitude(searchRequest.getLongitude())
+                    .radius(searchRequest.getRadius())
+                    .locationText(searchRequest.getLocation())
+                    .build();
+        }
+        
+        return AdvancedSearchResultDTO.SearchMetadata.builder()
+                .searchQuery(searchRequest.getKeyword())
+                .searchTimeMs(searchTime)
+                .filtersApplied(filtersApplied)
+                .sortBy(searchRequest.getSortBy())
+                .sortDirection(searchRequest.getSortDirection())
+                .searchLocation(searchLocation)
+                .build();
+    }
+    
+    private int countAppliedFilters(ServiceSearchRequest searchRequest) {
+        int count = 0;
+        if (searchRequest.hasTextSearch()) count++;
+        if (searchRequest.hasLocationFilter()) count++;
+        if (searchRequest.hasLocationTextSearch()) count++;
+        if (searchRequest.hasPriceFilter()) count++;
+        if (searchRequest.hasRatingFilter()) count++;
+        if (searchRequest.hasSkillsFilter()) count++;
+        if (searchRequest.hasServiceFilter()) count++;
+        if (searchRequest.getAvailableNow() != null) count++;
+        if (searchRequest.getHasLocation() != null) count++;
+        if (searchRequest.getMinExperienceYears() != null) count++;
+        return count;
+    }
+    
+    @Transactional(readOnly = true)
+    public List<TechnicianSearchResultDTO> findTopRatedTechniciansAdvanced(int minReviewCount, int limit) {
+        logBusinessOperation("FIND_TOP_RATED_TECHNICIANS_ADVANCED", "minReviews=" + minReviewCount + ", limit=" + limit);
+        
+        Pageable pageable = PageRequest.of(0, limit);
+        Page<TechnicianProfile> topRated = technicianProfileRepository.findTopRatedTechnicians(
+                (long) minReviewCount, UserStatus.ACTIVE, pageable);
+        
+        ServiceSearchRequest dummyRequest = ServiceSearchRequest.builder().build();
+        
+        return topRated.getContent().stream()
+                .map(profile -> convertToTechnicianSearchResultDTO(profile, dummyRequest))
+                .toList();
+    }
+    
+    @Transactional(readOnly = true)
+    public List<TechnicianSearchResultDTO> findExperiencedTechnicians(int minExperience, int limit) {
+        logBusinessOperation("FIND_EXPERIENCED_TECHNICIANS", "minExperience=" + minExperience + ", limit=" + limit);
+        
+        Pageable pageable = PageRequest.of(0, limit);
+        Page<TechnicianProfile> experienced = technicianProfileRepository.findByExperienceLevel(
+                minExperience, UserStatus.ACTIVE, pageable);
+        
+        ServiceSearchRequest dummyRequest = ServiceSearchRequest.builder().build();
+        
+        return experienced.getContent().stream()
+                .map(profile -> convertToTechnicianSearchResultDTO(profile, dummyRequest))
+                .toList();
+    }
+    
+    @Transactional(readOnly = true)
+    public List<TechnicianSearchResultDTO> findAvailableTechniciansNearby(Double latitude, Double longitude, 
+                                                                          Integer radiusKm, Integer workingRadiusFilter) {
+        logBusinessOperation("FIND_AVAILABLE_TECHNICIANS_NEARBY", 
+                "lat=" + latitude + ", lng=" + longitude + ", radius=" + radiusKm + "km");
+        
+        validateRequired(latitude, "latitude");
+        validateRequired(longitude, "longitude");
+        validateRequired(radiusKm, "radiusKm");
+        
+        List<TechnicianProfile> candidates = technicianProfileRepository.findAvailableTechniciansWithLocation(
+                UserStatus.ACTIVE, workingRadiusFilter);
+        
+        ServiceSearchRequest searchRequest = ServiceSearchRequest.builder()
+                .latitude(latitude)
+                .longitude(longitude)
+                .radius(radiusKm)
+                .availableNow(true)
+                .build();
+        
+        return candidates.stream()
+                .filter(profile -> {
+                    double distance = calculateDistance(latitude, longitude, 
+                            profile.getCurrentLatitude(), profile.getCurrentLongitude());
+                    return distance <= radiusKm;
+                })
+                .map(profile -> convertToTechnicianSearchResultDTO(profile, searchRequest))
+                .sorted((a, b) -> Double.compare(a.getDistanceKm(), b.getDistanceKm()))
+                .toList();
     }
 } 
