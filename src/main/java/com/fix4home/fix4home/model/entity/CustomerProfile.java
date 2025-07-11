@@ -28,6 +28,6 @@ public class CustomerProfile {
     @Enumerated(EnumType.STRING)
     private Gender gender;
     
-    @Column(name = "dob")
+    @Column(name = "date_of_birth")
     private LocalDate dob;
 } 

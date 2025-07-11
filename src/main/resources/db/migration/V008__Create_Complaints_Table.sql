@@ -99,8 +99,8 @@ CREATE INDEX idx_complaints_accused_status ON complaints(accused_id, status);
 CREATE INDEX idx_complaints_status_created_at ON complaints(status, created_at);
 CREATE INDEX idx_complaints_resolved_by_resolved_at ON complaints(resolved_by, resolved_at);
 
--- Create index for admin operations
-CREATE INDEX idx_complaints_pending_by_created_at ON complaints(status, created_at) WHERE status = 'PENDING';
+-- Create index for admin operations (MySQL doesn't support partial indexes with WHERE clause)
+CREATE INDEX idx_complaints_pending_by_created_at ON complaints(status, created_at);
 
 -- Sample data for testing (optional)
 -- Note: This assumes existing service requests and users in the system
