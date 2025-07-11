@@ -39,6 +39,13 @@ public class Address {
     @Column(length = 100)
     private String city;
     
+    // Vietnam Administrative API integration fields
+    @Column(name = "province_code", length = 10)
+    private String provinceCode;
+    
+    @Column(name = "ward_code", length = 10)
+    private String wardCode;
+    
     @Column(precision = 10, scale = 6)
     private BigDecimal latitude;
     

@@ -140,12 +140,36 @@ public class CustomerController {
     @DeleteMapping("/addresses/{addressId}")
     @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
     @Operation(summary = "Delete address", description = "Delete customer's own address")
-    public ResponseEntity<ApiResponse<String>> deleteAddress(
+    public ResponseEntity<ApiResponse<Void>> deleteAddress(
             @Parameter(description = "Address ID") @PathVariable Long addressId) {
         log.info("DELETE /api/v1/customers/addresses/{} - Delete address", addressId);
         customerService.deleteAddress(addressId);
         return ResponseEntity.ok(ApiResponse.success("Address deleted successfully", null));
     }
+
+    // ==================== ADDRESS SEARCH BY LOCATION ====================
+
+    @GetMapping("/addresses/search/by-province")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
+    @Operation(summary = "Search addresses by province", description = "Search customer's addresses by province code")
+    public ResponseEntity<ApiResponse<List<AddressDTO>>> searchAddressesByProvince(
+            @Parameter(description = "Province code") @RequestParam String provinceCode) {
+        log.info("GET /api/v1/customers/addresses/search/by-province - Search addresses by province: {}", provinceCode);
+        List<AddressDTO> addresses = customerService.getAddressesByProvince(provinceCode);
+        return ResponseEntity.ok(ApiResponse.success("Addresses found successfully", addresses));
+    }
+
+    @GetMapping("/addresses/search/by-ward")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_ROLE)
+    @Operation(summary = "Search addresses by ward", description = "Search customer's addresses by ward code")
+    public ResponseEntity<ApiResponse<List<AddressDTO>>> searchAddressesByWard(
+            @Parameter(description = "Ward code") @RequestParam String wardCode) {
+        log.info("GET /api/v1/customers/addresses/search/by-ward - Search addresses by ward: {}", wardCode);
+        List<AddressDTO> addresses = customerService.getAddressesByWard(wardCode);
+        return ResponseEntity.ok(ApiResponse.success("Addresses found successfully", addresses));
+    }
+
+
 
     // ==================== ADMIN ADDRESS MANAGEMENT ====================
 

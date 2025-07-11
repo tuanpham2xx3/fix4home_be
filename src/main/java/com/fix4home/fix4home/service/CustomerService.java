@@ -34,6 +34,7 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
     private final UserRepository userRepository;
     private final CustomerProfileRepository customerProfileRepository;
     private final AddressRepository addressRepository;
+    private final AddressApiService addressApiService;
 
     // ==================== PROFILE MANAGEMENT ====================
 
@@ -193,6 +194,11 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
         validateRequired(request, "request");
         User currentUser = getCurrentUser();
 
+        // Validate address using Vietnam Administrative API if codes are provided
+        if (request.getProvinceCode() != null && request.getWardCode() != null) {
+            validateAddressCodes(request.getProvinceCode(), request.getWardCode());
+        }
+
         Address address = Address.builder()
                 .user(currentUser)
                 .recipientName(request.getRecipientName())
@@ -201,6 +207,8 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
                 .ward(request.getWard())
                 .district(request.getDistrict())
                 .city(request.getCity())
+                .provinceCode(request.getProvinceCode())
+                .wardCode(request.getWardCode())
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
                 .build();
@@ -246,6 +254,20 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
             address.setCity(request.getCity());
         }
         
+        // Handle province and ward codes with validation
+        if (StringUtils.hasText(request.getProvinceCode())) {
+            address.setProvinceCode(request.getProvinceCode());
+        }
+        
+        if (StringUtils.hasText(request.getWardCode())) {
+            address.setWardCode(request.getWardCode());
+        }
+        
+        // Validate address codes if both are provided
+        if (StringUtils.hasText(address.getProvinceCode()) && StringUtils.hasText(address.getWardCode())) {
+            validateAddressCodes(address.getProvinceCode(), address.getWardCode());
+        }
+        
         if (request.getLatitude() != null) {
             address.setLatitude(request.getLatitude());
         }
@@ -271,6 +293,28 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
         addressRepository.delete(address);
     }
 
+    @Transactional(readOnly = true)
+    public List<AddressDTO> getAddressesByProvince(String provinceCode) {
+        logBusinessOperation("GET_ADDRESSES_BY_PROVINCE", "provinceCode=" + provinceCode);
+        
+        Long currentUserId = getCurrentUserId();
+        List<Address> addresses = addressRepository.findByUserIdAndProvinceCode(currentUserId, provinceCode);
+        return addresses.stream()
+                .map(this::convertToAddressDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AddressDTO> getAddressesByWard(String wardCode) {
+        logBusinessOperation("GET_ADDRESSES_BY_WARD", "wardCode=" + wardCode);
+        
+        Long currentUserId = getCurrentUserId();
+        List<Address> addresses = addressRepository.findByUserIdAndWardCode(currentUserId, wardCode);
+        return addresses.stream()
+                .map(this::convertToAddressDTO)
+                .toList();
+    }
+
     // ==================== PRIVATE HELPER METHODS ====================
 
     private CustomerProfile findCustomerProfile(User user) {
@@ -281,6 +325,23 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
     private Address findAddressById(Long addressId) {
         return addressRepository.findById(addressId)
                 .orElseThrow(() -> new BusinessValidationException("Address not found with id: " + addressId));
+    }
+
+    private void validateAddressCodes(String provinceCode, String wardCode) {
+        try {
+            com.fix4home.fix4home.model.dto.common.AddressValidationResult result = 
+                    addressApiService.validateAddress(provinceCode, wardCode);
+            
+            if (!result.getValid()) {
+                throw new BusinessValidationException("Invalid address: " + result.getMessage());
+            }
+            
+            log.info("Address validation successful for province: {} and ward: {}", provinceCode, wardCode);
+        } catch (Exception e) {
+            log.warn("Address validation failed for province: {} and ward: {} - {}", 
+                    provinceCode, wardCode, e.getMessage());
+            // Don't fail the request if external API is down, just log the warning
+        }
     }
 
     // ==================== DTO CONVERSION METHODS ====================
@@ -320,6 +381,8 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
                 .ward(address.getWard())
                 .district(address.getDistrict())
                 .city(address.getCity())
+                .provinceCode(address.getProvinceCode())
+                .wardCode(address.getWardCode())
                 .latitude(address.getLatitude())
                 .longitude(address.getLongitude())
                 .build();

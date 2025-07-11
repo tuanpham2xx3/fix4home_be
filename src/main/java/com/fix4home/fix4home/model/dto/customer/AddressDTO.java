@@ -21,6 +21,11 @@ public class AddressDTO {
     private String ward;
     private String district;
     private String city;
+    
+    // Vietnam Administrative API integration fields
+    private String provinceCode;
+    private String wardCode;
+    
     private BigDecimal latitude;
     private BigDecimal longitude;
 } 

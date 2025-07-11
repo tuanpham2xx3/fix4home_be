@@ -26,5 +26,33 @@ public interface AddressRepository extends JpaRepository<Address, Long> {
     @Query("SELECT a FROM Address a WHERE a.district = :district")
     List<Address> findByDistrict(@Param("district") String district);
     
+    // Vietnam Administrative API integration queries
+    @Query("SELECT a FROM Address a WHERE a.provinceCode = :provinceCode")
+    List<Address> findByProvinceCode(@Param("provinceCode") String provinceCode);
+    
+    @Query("SELECT a FROM Address a WHERE a.wardCode = :wardCode")
+    List<Address> findByWardCode(@Param("wardCode") String wardCode);
+    
+    @Query("SELECT a FROM Address a WHERE a.provinceCode = :provinceCode AND a.wardCode = :wardCode")
+    List<Address> findByProvinceCodeAndWardCode(@Param("provinceCode") String provinceCode, 
+                                               @Param("wardCode") String wardCode);
+    
+    @Query("SELECT a FROM Address a WHERE a.user.id = :userId AND a.provinceCode = :provinceCode")
+    List<Address> findByUserIdAndProvinceCode(@Param("userId") Long userId, 
+                                            @Param("provinceCode") String provinceCode);
+    
+    @Query("SELECT a FROM Address a WHERE a.user.id = :userId AND a.wardCode = :wardCode")
+    List<Address> findByUserIdAndWardCode(@Param("userId") Long userId, 
+                                        @Param("wardCode") String wardCode);
+    
+    // Enhanced location-based search with province/ward filtering
+    @Query("SELECT a FROM Address a WHERE " +
+           "(:city IS NULL OR LOWER(a.city) LIKE LOWER(CONCAT('%', :city, '%'))) AND " +
+           "(:provinceCode IS NULL OR a.provinceCode = :provinceCode) AND " +
+           "(:wardCode IS NULL OR a.wardCode = :wardCode)")
+    List<Address> findByLocationCriteria(@Param("city") String city,
+                                       @Param("provinceCode") String provinceCode,
+                                       @Param("wardCode") String wardCode);
+    
     boolean existsByUserIdAndId(Long userId, Long addressId);
 } 

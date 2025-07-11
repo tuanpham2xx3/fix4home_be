@@ -32,6 +32,13 @@ public class UpdateAddressRequest {
     @Size(max = 100, message = "City cannot exceed 100 characters")
     private String city;
     
+    // Vietnam Administrative API integration fields (optional for validation)
+    @Size(max = 10, message = "Province code cannot exceed 10 characters")
+    private String provinceCode;
+    
+    @Size(max = 10, message = "Ward code cannot exceed 10 characters")
+    private String wardCode;
+    
     @DecimalMin(value = "-90.0", message = "Latitude must be between -90 and 90")
     @DecimalMax(value = "90.0", message = "Latitude must be between -90 and 90")
     @Digits(integer = 3, fraction = 6, message = "Latitude must have at most 3 integer digits and 6 decimal places")

@@ -3,10 +3,14 @@ package com.fix4home.fix4home.controller;
 import com.fix4home.fix4home.config.RateLimitConfig;
 import com.fix4home.fix4home.exception.TokenRefreshException;
 import com.fix4home.fix4home.model.dto.auth.AuthResponse;
+import com.fix4home.fix4home.model.dto.auth.ForgotPasswordRequest;
 import com.fix4home.fix4home.model.dto.auth.LoginRequest;
 import com.fix4home.fix4home.model.dto.auth.RefreshTokenResponse;
 import com.fix4home.fix4home.model.dto.auth.RegisterRequest;
+import com.fix4home.fix4home.model.dto.auth.ResetPasswordRequest;
+import com.fix4home.fix4home.model.dto.auth.SendVerificationCodeRequest;
 import com.fix4home.fix4home.model.dto.auth.TokenInfoDTO;
+import com.fix4home.fix4home.model.dto.auth.VerifyEmailRequest;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.entity.RefreshToken;
 import com.fix4home.fix4home.model.entity.User;
@@ -14,6 +18,7 @@ import com.fix4home.fix4home.repository.UserRepository;
 import com.fix4home.fix4home.security.CustomUserDetails;
 import com.fix4home.fix4home.security.JwtTokenProvider;
 import com.fix4home.fix4home.service.AuthService;
+import com.fix4home.fix4home.service.EmailVerificationService;
 import com.fix4home.fix4home.service.RefreshTokenService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
@@ -35,9 +41,11 @@ public class AuthController {
 
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
+    private final EmailVerificationService emailVerificationService;
     private final RateLimitConfig rateLimitConfig;
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -234,6 +242,142 @@ public class AuthController {
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success("Token is valid", tokenInfo));
+    }
+
+    @PostMapping("/send-verification-code")
+    public ResponseEntity<ApiResponse<Void>> sendVerificationCode(
+            @Valid @RequestBody SendVerificationCodeRequest request) {
+        
+        // Check if user exists with this email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            // For security, we don't reveal if email exists or not
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("If the email exists, a verification code has been sent", null));
+        }
+
+        // Send verification code for registration verification
+        boolean emailSent = emailVerificationService.sendVerificationCode(
+                request.getEmail(), 
+                "email_verification", 
+                user.getId()
+        );
+
+        if (emailSent) {
+            log.info("Verification code sent to email: {}", request.getEmail());
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("Verification code sent successfully", null));
+        } else {
+            log.error("Failed to send verification code to email: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to send verification code. Please try again later."));
+        }
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(
+            @Valid @RequestBody VerifyEmailRequest request) {
+        
+        // Find user by email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Invalid email or verification code"));
+        }
+
+        // Verify the code with microservice
+        boolean isValidCode = emailVerificationService.verifyCode(request.getEmail(), request.getCode());
+
+        if (!isValidCode) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Invalid or expired verification code"));
+        }
+
+        // Update user status after email verification
+        if (user.getStatus() == com.fix4home.fix4home.model.enums.UserStatus.PENDING_EMAIL_VERIFICATION) {
+            if (user.getRole() == com.fix4home.fix4home.model.enums.Role.TECHNICIAN) {
+                // Technician needs admin approval after email verification
+                user.setStatus(com.fix4home.fix4home.model.enums.UserStatus.PENDING_APPROVAL);
+                log.info("Email verified for technician, status set to PENDING_APPROVAL: {}", user.getEmail());
+            } else {
+                // Customer and other roles are activated immediately after email verification
+                user.setStatus(com.fix4home.fix4home.model.enums.UserStatus.ACTIVE);
+                log.info("Email verified and user activated: {}", user.getEmail());
+            }
+            userRepository.save(user);
+        }
+
+        return ResponseEntity.ok(
+                ApiResponse.<Void>success("Email verified successfully", null));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        
+        // Check if user exists with this email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            // For security, we don't reveal if email exists or not
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("If the email exists, a password reset code has been sent", null));
+        }
+
+        // Send verification code for password reset
+        boolean emailSent = emailVerificationService.sendVerificationCode(
+                request.getEmail(), 
+                "forgot_password", 
+                user.getId()
+        );
+
+        if (emailSent) {
+            log.info("Password reset code sent to email: {}", request.getEmail());
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("Password reset code sent successfully", null));
+        } else {
+            log.error("Failed to send password reset code to email: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to send password reset code. Please try again later."));
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        
+        // Find user by email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Invalid email or verification code"));
+        }
+
+        // Verify the code with microservice
+        boolean isValidCode = emailVerificationService.verifyCode(request.getEmail(), request.getCode());
+
+        if (!isValidCode) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Invalid or expired verification code"));
+        }
+
+        // Update user's password
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // Revoke all existing refresh tokens for security
+        refreshTokenService.deleteByUserId(user.getId());
+
+        log.info("Password reset successfully for user: {}", user.getEmail());
+        return ResponseEntity.ok(
+                ApiResponse.<Void>success("Password reset successfully", null));
     }
 
     private void setRefreshTokenCookie(HttpServletResponse response, Long userId, String deviceId) {

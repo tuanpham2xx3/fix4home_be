@@ -38,6 +38,7 @@ public class AuthService extends BaseService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final AuthenticationManager authenticationManager;
+    private final EmailVerificationService emailVerificationService;
 
     @Value("${admin.registration.key}")
     private String adminRegistrationKey;
@@ -92,7 +93,23 @@ public class AuthService extends BaseService {
         // Create profile based on role
         createUserProfile(savedUser, request);
 
-        // Generate token
+        // Send email verification code for non-admin users
+        if (savedUser.getStatus() == UserStatus.PENDING_EMAIL_VERIFICATION) {
+            try {
+                boolean emailSent = emailVerificationService.sendVerificationCode(
+                        savedUser.getEmail(), 
+                        "registration", 
+                        savedUser.getId()
+                );
+                if (!emailSent) {
+                    log.warn("Failed to send verification email to: {}", savedUser.getEmail());
+                }
+            } catch (Exception e) {
+                log.error("Error sending verification email to: {}", savedUser.getEmail(), e);
+            }
+        }
+
+        // Generate token (note: user still needs to verify email before they can login)
         String token = tokenProvider.generateToken(savedUser.getUsername());
 
         return buildAuthResponse(savedUser, token, request);
@@ -124,9 +141,13 @@ public class AuthService extends BaseService {
         // Get user details
         User user = findUserByUsernameOrEmail(request.getUsernameOrEmail());
 
-        // Check if user is active
+        // Check user status
         if (user.getStatus() == UserStatus.INACTIVE) {
             throw AccountNotActiveException.inactive();
+        }
+        
+        if (user.getStatus() == UserStatus.PENDING_EMAIL_VERIFICATION) {
+            throw AccountNotActiveException.withStatus(UserStatus.PENDING_EMAIL_VERIFICATION);
         }
 
         // For technician, check if approved
@@ -147,8 +168,9 @@ public class AuthService extends BaseService {
     }
 
     private UserStatus determineUserStatus(Role role) {
-        // Technician needs admin approval, others are active immediately
-        return role == Role.TECHNICIAN ? UserStatus.PENDING_APPROVAL : UserStatus.ACTIVE;
+        // All users need email verification first
+        // Technician will need additional admin approval after email verification
+        return role == Role.ADMIN ? UserStatus.ACTIVE : UserStatus.PENDING_EMAIL_VERIFICATION;
     }
 
     private void createUserProfile(User user, RegisterRequest request) {
