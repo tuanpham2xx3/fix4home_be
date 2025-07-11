@@ -112,6 +112,13 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/feedbacks/public").permitAll()
                 .requestMatchers(SecurityConstants.API_V1_FEEDBACKS).authenticated()
                 
+                // Chat endpoints - authenticated users only (role-based security in controller)
+                .requestMatchers("/api/v1/chat/**").authenticated()
+                
+                // WebSocket endpoints - authenticated users only
+                .requestMatchers("/ws/**").authenticated()
+                .requestMatchers("/ws-native/**").authenticated()
+                
                 // Admin endpoints - all require ADMIN role
                 .requestMatchers(SecurityConstants.API_V1_ADMIN).hasRole("ADMIN")
                 
