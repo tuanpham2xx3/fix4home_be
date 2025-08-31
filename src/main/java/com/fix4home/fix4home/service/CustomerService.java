@@ -1,6 +1,5 @@
 package com.fix4home.fix4home.service;
 
-import com.fix4home.fix4home.exception.UserNotFoundException;
 import com.fix4home.fix4home.exception.BusinessValidationException;
 import com.fix4home.fix4home.model.dto.customer.*;
 import com.fix4home.fix4home.model.entity.Address;
@@ -12,19 +11,20 @@ import com.fix4home.fix4home.repository.CustomerProfileRepository;
 import com.fix4home.fix4home.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-import static com.fix4home.fix4home.service.ServiceValidationUtils.*;
+
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +39,7 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
     // ==================== PROFILE MANAGEMENT ====================
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "customerProfiles", key = "#userId")
     public CustomerProfileDTO getCustomerProfile(Long userId) {
         logBusinessOperation("GET_CUSTOMER_PROFILE", "userId=" + userId);
         
@@ -62,6 +63,7 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
     }
 
     @Transactional
+    @CacheEvict(value = "customerProfiles", key = "#userId")
     public CustomerProfileDTO updateCustomerProfile(Long userId, UpdateCustomerProfileRequest request) {
         logBusinessOperation("UPDATE_CUSTOMER_PROFILE", "userId=" + userId);
         

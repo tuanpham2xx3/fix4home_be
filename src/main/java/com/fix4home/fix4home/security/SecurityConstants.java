@@ -68,6 +68,13 @@ public final class SecurityConstants {
      */
     public static final String HAS_CUSTOMER_OR_TECHNICIAN_ROLE = "hasAnyRole('" + ROLE_CUSTOMER + "', '" + ROLE_TECHNICIAN + "')";
     
+    /**
+     * Authorization expression for any authenticated user
+     */
+    public static final String IS_AUTHENTICATED = "isAuthenticated()";
+    
+    // ==================== API ENDPOINT PATTERNS ===================="
+    
     // ==================== JWT CONSTANTS ====================
     
     /**

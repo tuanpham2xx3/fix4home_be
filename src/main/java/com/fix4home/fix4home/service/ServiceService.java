@@ -10,6 +10,7 @@ import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +40,7 @@ public class ServiceService extends BaseService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "services", key = "'active'")
     public List<ServiceDTO> getActiveServices() {
         logBusinessOperation("GET_ACTIVE_SERVICES");
 

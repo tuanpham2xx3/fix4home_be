@@ -98,6 +98,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
     }
 
+    @ExceptionHandler(SecurityValidationException.class)
+    public ResponseEntity<ErrorResponse> handleSecurityValidation(SecurityValidationException ex, WebRequest request) {
+        log.error("Security validation failed: {}", ex.getMessage());
+        
+        ErrorResponse errorResponse = ErrorResponse.business(
+                "SECURITY_VALIDATION_FAILED",
+                "Security validation failed: " + ex.getMessage(),
+                "Invalid input detected. Please check your data and try again.",
+                400
+        ).withPath(getPath(request));
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
     // ==================== VALIDATION EXCEPTIONS ====================
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -233,6 +233,10 @@ public class AuthService extends BaseService {
                            .rating(profile.getRating());
                 }
             }
+            case ADMIN -> {
+                // Admin profile handling if needed
+                builder.fullName(user.getUsername()); // Use username for admin since no profile table
+            }
         }
 
         return builder.build();

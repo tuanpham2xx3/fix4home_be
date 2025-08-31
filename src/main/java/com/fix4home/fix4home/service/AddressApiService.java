@@ -4,6 +4,7 @@ import com.fix4home.fix4home.model.dto.common.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,7 @@ public class AddressApiService extends BaseService {
     /**
      * Get all provinces
      */
+    @Cacheable(value = "provinces", key = "'all'")
     public List<ProvinceDTO> getAllProvinces() {
         try {
             log.info("Fetching all provinces from Vietnam Address API");
@@ -96,6 +98,7 @@ public class AddressApiService extends BaseService {
     /**
      * Get province by code
      */
+    @Cacheable(value = "provinces", key = "#provinceCode")
     public ProvinceDTO getProvinceByCode(String provinceCode) {
         try {
             log.info("Fetching province by code: {}", provinceCode);
@@ -163,6 +166,7 @@ public class AddressApiService extends BaseService {
     /**
      * Get ward by code
      */
+    @Cacheable(value = "wards", key = "#wardCode")
     public WardDTO getWardByCode(String wardCode) {
         try {
             log.info("Fetching ward by code: {}", wardCode);

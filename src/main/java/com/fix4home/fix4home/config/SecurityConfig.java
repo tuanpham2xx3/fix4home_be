@@ -112,6 +112,13 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/feedbacks/public").permitAll()
                 .requestMatchers(SecurityConstants.API_V1_FEEDBACKS).authenticated()
                 
+                // File Management endpoints
+                .requestMatchers(HttpMethod.GET, "/api/v1/files/download/**").permitAll() // Public file access
+                .requestMatchers(HttpMethod.GET, "/api/v1/files/view/**").permitAll() // Public file viewing
+                .requestMatchers("/api/v1/files/upload/**").authenticated() // File upload requires auth
+                .requestMatchers("/api/v1/files/admin/**").hasRole("ADMIN") // Admin file management
+                .requestMatchers("/api/v1/files/**").authenticated() // Other file operations require auth
+                
                 // Chat endpoints - authenticated users only (role-based security in controller)
                 .requestMatchers("/api/v1/chat/**").authenticated()
                 
