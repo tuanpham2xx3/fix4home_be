@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    
+    <!-- Suppress false positives for Spring Boot dependencies -->
+    <suppress>
+        <notes><![CDATA[
+        Spring Boot starter dependencies are managed and regularly updated
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/org\.springframework\.boot/.*$</packageUrl>
+        <cve>CVE-2016-1000027</cve>
+    </suppress>
+    
+    <!-- Suppress test-only dependencies -->
+    <suppress>
+        <notes><![CDATA[
+        Test dependencies are not shipped to production
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/org\.testcontainers/.*$</packageUrl>
+    </suppress>
+    
+    <suppress>
+        <notes><![CDATA[
+        H2 database is only used for testing
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/com\.h2database/h2@.*$</packageUrl>
+    </suppress>
+    
+    <!-- Suppress known non-applicable CVEs -->
+    <suppress>
+        <notes><![CDATA[
+        This CVE applies to a different usage pattern
+        ]]></notes>
+        <cve>CVE-2018-1000873</cve>
+    </suppress>
+
+</suppressions>

@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: fix4home-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-pass123}
+      MYSQL_DATABASE: ${DB_NAME:-fix4home_db}
+      MYSQL_USER: ${DB_USER:-fix4home}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-pass123}
+    ports:
+      - "${DB_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/db/init:/docker-entrypoint-initdb.d
+    networks:
+      - fix4home-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: fix4home-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fix4home-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Fix4Home Backend Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fix4home-backend
+    environment:
+      # Database Configuration
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME:-fix4home_db}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-fix4home}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-pass123}
+      
+      # Redis Configuration
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET:-fix4home-production-jwt-secret-key-2024-very-secure-and-long}
+      
+      # Admin Configuration
+      ADMIN_REGISTRATION_KEY: ${ADMIN_REGISTRATION_KEY:-FIX4HOME_ADMIN_SECRET_PRODUCTION_2024}
+      
+      # File Storage
+      FILE_STORAGE_LOCAL_BASE_URL: http://localhost:8100/api/v1/files/
+      
+      # Email Service
+      EMAIL_VERIFICATION_API_KEY: ${EMAIL_VERIFICATION_API_KEY:-fix4home_prod_123abc456def789}
+      
+      # Monitoring
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,metrics,prometheus,info
+      
+      # Production Profile
+      SPRING_PROFILES_ACTIVE: production
+      
+      # Java Options
+      JAVA_OPTS: -Xmx1g -Xms512m -XX:+UseG1GC -XX:+UseContainerSupport
+    ports:
+      - "${APP_PORT:-8100}:8100"
+    volumes:
+      - app_uploads:/app/uploads
+      - app_logs:/app/logs
+    networks:
+      - fix4home-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: fix4home-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - fix4home-network
+    depends_on:
+      - app
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # Prometheus Monitoring (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fix4home-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - fix4home-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Grafana Dashboard (Optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fix4home-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - fix4home-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_uploads:
+    driver: local
+  app_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  fix4home-network:
+    driver: bridge

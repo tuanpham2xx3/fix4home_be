@@ -1,0 +1,120 @@
+# Alert Rules for Fix4Home Backend
+
+groups:
+  - name: fix4home_alerts
+    rules:
+      # Application Health Alerts
+      - alert: Fix4HomeDown
+        expr: up{job="fix4home-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fix4Home Backend is down"
+          description: "Fix4Home Backend has been down for more than 1 minute."
+
+      # High Response Time
+      - alert: Fix4HomeHighResponseTime
+        expr: http_request_duration_seconds{job="fix4home-backend",quantile="0.95"} > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fix4Home Backend high response time"
+          description: "95th percentile response time is {{ $value }}s for more than 5 minutes."
+
+      # High Error Rate
+      - alert: Fix4HomeHighErrorRate
+        expr: rate(http_requests_total{job="fix4home-backend",status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fix4Home Backend high error rate"
+          description: "Error rate is {{ $value }} errors per second for more than 2 minutes."
+
+      # Memory Usage
+      - alert: Fix4HomeHighMemoryUsage
+        expr: jvm_memory_used_bytes{job="fix4home-backend",area="heap"} / jvm_memory_max_bytes{job="fix4home-backend",area="heap"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fix4Home Backend high memory usage"
+          description: "JVM heap memory usage is {{ $value | humanizePercentage }} for more than 5 minutes."
+
+      # Database Connection Pool
+      - alert: Fix4HomeDbConnectionPoolHigh
+        expr: hikaricp_connections_active{job="fix4home-backend"} / hikaricp_connections_max{job="fix4home-backend"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fix4Home Database connection pool usage high"
+          description: "Database connection pool usage is {{ $value | humanizePercentage }} for more than 5 minutes."
+
+      # Database Alerts
+      - alert: MySQLDown
+        expr: up{job="mysql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL database is down"
+          description: "MySQL database has been down for more than 1 minute."
+
+      - alert: MySQLSlowQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL slow queries detected"
+          description: "MySQL is experiencing {{ $value }} slow queries per second for more than 5 minutes."
+
+      # Redis Alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute."
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes{job="redis"} / redis_memory_max_bytes{job="redis"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} for more than 5 minutes."
+
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% for more than 5 minutes."
+
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_free_bytes{fstype!="tmpfs"}) / node_filesystem_size_bytes{fstype!="tmpfs"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value | humanizePercentage }} for more than 5 minutes."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanizePercentage }} for more than 5 minutes."
