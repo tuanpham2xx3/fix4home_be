@@ -101,3 +101,5 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      */
     void deleteByCreatedAtBefore(LocalDateTime cutoffDate);
 }
+
+

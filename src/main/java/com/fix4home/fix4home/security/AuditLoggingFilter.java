@@ -185,3 +185,8 @@ public class AuditLoggingFilter implements Filter {
                uri.endsWith(".ico");
     }
 }
+
+
+
+
+

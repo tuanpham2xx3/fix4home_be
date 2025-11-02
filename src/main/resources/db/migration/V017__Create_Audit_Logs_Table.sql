@@ -51,3 +51,8 @@ ALTER TABLE audit_logs MODIFY COLUMN resource VARCHAR(200) COMMENT 'Resource typ
 ALTER TABLE audit_logs MODIFY COLUMN ip_address VARCHAR(45) COMMENT 'Client IP address (supports IPv6)';
 ALTER TABLE audit_logs MODIFY COLUMN processing_time BIGINT COMMENT 'Request processing time in milliseconds';
 ALTER TABLE audit_logs MODIFY COLUMN success BOOLEAN COMMENT 'Whether the request was successful';
+
+
+
+
+

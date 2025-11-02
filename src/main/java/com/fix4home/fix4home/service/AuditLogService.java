@@ -2,16 +2,10 @@ package com.fix4home.fix4home.service;
 
 import com.fix4home.fix4home.model.entity.AuditLog;
 import com.fix4home.fix4home.repository.AuditLogRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,113 +13,32 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Service for audit logging and security monitoring
+ * Service for audit log operations and security monitoring
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional
 public class AuditLogService {
     
     private final AuditLogRepository auditLogRepository;
-    private final ObjectMapper objectMapper;
+    
+    private static final int SUSPICIOUS_THRESHOLD = 5; // Failed attempts threshold
     
     /**
-     * Log a request asynchronously for better performance
-     */
-    @Async
-    public void logRequest(HttpServletRequest request, String action, String resource, 
-                          Long resourceId, Object requestBody, Integer responseStatus, 
-                          Long processingTime, Boolean success, String errorMessage) {
-        try {
-            AuditLog auditLog = buildAuditLog(request, action, resource, resourceId, 
-                requestBody, responseStatus, processingTime, success, errorMessage);
-            
-            auditLogRepository.save(auditLog);
-            
-        } catch (Exception e) {
-            log.error("Failed to save audit log", e);
-        }
-    }
-    
-    /**
-     * Log a security event
-     */
-    @Async
-    public void logSecurityEvent(String action, String details, String ipAddress, String userAgent) {
-        try {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            
-            AuditLog auditLog = AuditLog.builder()
-                .userId(auth != null && auth.isAuthenticated() ? getCurrentUserId() : null)
-                .username(auth != null ? auth.getName() : "anonymous")
-                .action("SECURITY_" + action)
-                .resource("SECURITY")
-                .method("SYSTEM")
-                .endpoint("SECURITY_EVENT")
-                .ipAddress(ipAddress)
-                .userAgent(userAgent)
-                .success(false)
-                .errorMessage(details)
-                .additionalData(details)
-                .build();
-                
-            auditLogRepository.save(auditLog);
-            
-        } catch (Exception e) {
-            log.error("Failed to save security audit log", e);
-        }
-    }
-    
-    /**
-     * Log user login attempt
-     */
-    @Async
-    public void logLoginAttempt(String username, String ipAddress, String userAgent, boolean success, String errorMessage) {
-        try {
-            AuditLog auditLog = AuditLog.builder()
-                .username(username)
-                .action(success ? "LOGIN_SUCCESS" : "LOGIN_FAILED")
-                .resource("AUTH")
-                .method("POST")
-                .endpoint("/api/v1/auth/login")
-                .ipAddress(ipAddress)
-                .userAgent(userAgent)
-                .success(success)
-                .errorMessage(errorMessage)
-                .build();
-                
-            auditLogRepository.save(auditLog);
-            
-        } catch (Exception e) {
-            log.error("Failed to save login audit log", e);
-        }
-    }
-    
-    /**
-     * Check for suspicious activities
-     */
-    public boolean isSuspiciousActivity(String ipAddress) {
-        LocalDateTime since = LocalDateTime.now().minusHours(1);
-        long failedAttempts = auditLogRepository.countFailedAttemptsByIp(ipAddress, since);
-        
-        // More than 10 failed attempts in 1 hour is suspicious
-        return failedAttempts > 10;
-    }
-    
-    /**
-     * Get audit logs with pagination
+     * Get all audit logs with pagination
      */
     @Transactional(readOnly = true)
     public Page<AuditLog> getAuditLogs(Pageable pageable) {
+        log.debug("Getting audit logs with pagination: {}", pageable);
         return auditLogRepository.findAll(pageable);
     }
     
     /**
-     * Get audit logs by user
+     * Get audit logs by user ID
      */
     @Transactional(readOnly = true)
     public Page<AuditLog> getAuditLogsByUser(Long userId, Pageable pageable) {
+        log.debug("Getting audit logs for user ID: {}", userId);
         return auditLogRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }
     
@@ -134,26 +47,18 @@ public class AuditLogService {
      */
     @Transactional(readOnly = true)
     public Page<AuditLog> getFailedRequests(Pageable pageable) {
+        log.debug("Getting failed requests for security monitoring");
         return auditLogRepository.findFailedRequests(pageable);
     }
     
     /**
-     * Get suspicious activities by IP
+     * Get suspicious activities for an IP address
      */
     @Transactional(readOnly = true)
     public List<AuditLog> getSuspiciousActivities(String ipAddress, int hoursBack) {
+        log.debug("Getting suspicious activities for IP: {} in last {} hours", ipAddress, hoursBack);
         LocalDateTime since = LocalDateTime.now().minusHours(hoursBack);
         return auditLogRepository.findSuspiciousActivities(ipAddress, since);
-    }
-    
-    /**
-     * Cleanup old audit logs
-     */
-    @Transactional
-    public void cleanupOldLogs(int daysToKeep) {
-        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(daysToKeep);
-        auditLogRepository.deleteByCreatedAtBefore(cutoffDate);
-        log.info("Cleaned up audit logs older than {} days", daysToKeep);
     }
     
     /**
@@ -161,6 +66,7 @@ public class AuditLogService {
      */
     @Transactional(readOnly = true)
     public List<Object[]> getUserActivitySummary(Long userId, int daysBack) {
+        log.debug("Getting activity summary for user ID: {} for last {} days", userId, daysBack);
         LocalDateTime since = LocalDateTime.now().minusDays(daysBack);
         return auditLogRepository.getUserActivitySummary(userId, since);
     }
@@ -170,22 +76,56 @@ public class AuditLogService {
      */
     @Transactional(readOnly = true)
     public List<Object[]> getMostAccessedEndpoints(int daysBack) {
+        log.debug("Getting most accessed endpoints for last {} days", daysBack);
         LocalDateTime since = LocalDateTime.now().minusDays(daysBack);
         return auditLogRepository.getMostAccessedEndpoints(since);
     }
     
     /**
-     * Build audit log from request information
+     * Cleanup old audit logs
      */
-    private AuditLog buildAuditLog(HttpServletRequest request, String action, String resource, 
-                                  Long resourceId, Object requestBody, Integer responseStatus, 
-                                  Long processingTime, Boolean success, String errorMessage) {
+    @Transactional
+    public void cleanupOldLogs(int daysToKeep) {
+        log.info("Cleaning up audit logs older than {} days", daysToKeep);
+        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(daysToKeep);
+        auditLogRepository.deleteByCreatedAtBefore(cutoffDate);
+    }
+    
+    /**
+     * Check if IP address has suspicious activity
+     */
+    @Transactional(readOnly = true)
+    public boolean isSuspiciousActivity(String ipAddress) {
+        log.debug("Checking if IP {} has suspicious activity", ipAddress);
+        LocalDateTime since = LocalDateTime.now().minusHours(1); // Check last hour
+        long failedAttempts = auditLogRepository.countFailedAttemptsByIp(ipAddress, since);
+        return failedAttempts >= SUSPICIOUS_THRESHOLD;
+    }
+    
+    /**
+     * Save audit log entry
+     */
+    @Transactional
+    public AuditLog saveAuditLog(AuditLog auditLog) {
+        log.debug("Saving audit log entry for action: {}", auditLog.getAction());
+        return auditLogRepository.save(auditLog);
+    }
+    
+    /**
+     * Log HTTP request for audit purposes
+     */
+    @Transactional
+    public void logRequest(jakarta.servlet.http.HttpServletRequest request, 
+                          String action, 
+                          String resource, 
+                          Long resourceId, 
+                          String requestBody, 
+                          int responseStatus, 
+                          long processingTime, 
+                          boolean success, 
+                          String errorMessage) {
         
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        
-        return AuditLog.builder()
-            .userId(auth != null && auth.isAuthenticated() ? getCurrentUserId() : null)
-            .username(auth != null ? auth.getName() : "anonymous")
+        AuditLog auditLog = AuditLog.builder()
             .action(action)
             .resource(resource)
             .resourceId(resourceId)
@@ -193,70 +133,36 @@ public class AuditLogService {
             .endpoint(request.getRequestURI())
             .ipAddress(getClientIpAddress(request))
             .userAgent(request.getHeader("User-Agent"))
-            .requestBody(serializeRequestBody(requestBody))
+            .requestBody(requestBody)
             .responseStatus(responseStatus)
             .processingTime(processingTime)
             .sessionId(request.getSession(false) != null ? request.getSession().getId() : null)
             .success(success)
             .errorMessage(errorMessage)
             .build();
+            
+        // Extract user info if available
+        if (request.getUserPrincipal() != null) {
+            auditLog.setUsername(request.getUserPrincipal().getName());
+        }
+        
+        auditLogRepository.save(auditLog);
     }
     
     /**
-     * Get client IP address considering proxies
+     * Get client IP address from request
      */
-    private String getClientIpAddress(HttpServletRequest request) {
-        String[] headers = {
-            "X-Forwarded-For",
-            "X-Real-IP",
-            "Proxy-Client-IP",
-            "WL-Proxy-Client-IP",
-            "HTTP_X_FORWARDED_FOR",
-            "HTTP_X_FORWARDED",
-            "HTTP_X_CLUSTER_CLIENT_IP",
-            "HTTP_CLIENT_IP",
-            "HTTP_FORWARDED_FOR",
-            "HTTP_FORWARDED"
-        };
+    private String getClientIpAddress(jakarta.servlet.http.HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
         
-        for (String header : headers) {
-            String ip = request.getHeader(header);
-            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-                // Get first IP in case of comma-separated list
-                return ip.split(",")[0].trim();
-            }
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty()) {
+            return xRealIp;
         }
         
         return request.getRemoteAddr();
-    }
-    
-    /**
-     * Serialize request body to JSON string
-     */
-    private String serializeRequestBody(Object requestBody) {
-        if (requestBody == null) {
-            return null;
-        }
-        
-        try {
-            // Limit size to prevent database issues
-            String json = objectMapper.writeValueAsString(requestBody);
-            if (json.length() > 5000) {
-                return json.substring(0, 5000) + "... [TRUNCATED]";
-            }
-            return json;
-        } catch (JsonProcessingException e) {
-            log.debug("Could not serialize request body", e);
-            return requestBody.toString();
-        }
-    }
-    
-    /**
-     * Get current user ID from security context
-     */
-    private Long getCurrentUserId() {
-        // This would need to be implemented based on your user details implementation
-        // For now, return null - can be enhanced later
-        return null;
     }
 }

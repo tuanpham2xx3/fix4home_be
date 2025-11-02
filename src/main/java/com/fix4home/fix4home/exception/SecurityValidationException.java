@@ -13,3 +13,5 @@ public class SecurityValidationException extends RuntimeException {
         super(message, cause);
     }
 }
+
+
