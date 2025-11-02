@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fix4Home API Documentation</title>
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .topbar {
+      background-color: #007bff;
+      padding: 15px 30px;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .swagger-ui .topbar {
+      display: none;
+    }
+    #api-url-form {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+    }
+    #api-url {
+      width: 300px;
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    #update-btn {
+      background-color: white;
+      color: #007bff;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #update-btn:hover {
+      background-color: #f0f0f0;
+    }
+    .info {
+      padding: 10px 30px;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #dee2e6;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>🛠️ Fix4Home API Documentation</h1>
+    <form id="api-url-form">
+      <input type="text" id="api-url" placeholder="API URL" value="http://localhost:8080/api-docs-json">
+      <button type="submit" id="update-btn">Update URL</button>
+    </form>
+  </div>
+  <div class="info">
+    <p>This interface allows frontend developers to test and interact with the Fix4Home API endpoints. The API is running on the backend server (port 8080) while this Swagger UI is served on port 3001.</p>
+  </div>
+
+  <div id="api-status-alert" style="display: none; padding: 15px; margin: 0 30px 20px; border-radius: 5px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;">
+    <h3 style="margin-top: 0;">⚠️ API Documentation Not Available</h3>
+    <p>Unable to connect to the API documentation endpoint. Please check:</p>
+    <ol>
+      <li>The backend server is running at <code>http://localhost:8080</code></li>
+      <li>The <code>OpenApiConfig.java</code> class is properly configured</li>
+      <li>The <code>springdoc.api-docs.path=/api-docs</code> property is set in <code>application.properties</code></li>
+      <li>There are no CORS issues blocking the request</li>
+    </ol>
+    <button id="retry-button" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Retry Connection</button>
+  </div>
+
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.onload = function() {
+      const apiStatusAlert = document.getElementById('api-status-alert');
+      const retryButton = document.getElementById('retry-button');
+      const urlInput = document.getElementById('api-url');
+      
+      function checkApiAvailability(url) {
+        fetch('/api-check')
+          .then(response => response.json())
+          .then(data => {
+            if (data.available) {
+              apiStatusAlert.style.display = 'none';
+              initSwaggerUI(url);
+            } else {
+              console.error('API documentation not available:', data.message);
+              apiStatusAlert.style.display = 'block';
+            }
+          })
+          .catch(error => {
+            console.error('Error checking API availability:', error);
+            apiStatusAlert.style.display = 'block';
+          });
+      }
+      
+      function initSwaggerUI(url) {
+        // Clear previous instance if exists
+        const swaggerContainer = document.getElementById('swagger-ui');
+        while (swaggerContainer.firstChild) {
+          swaggerContainer.removeChild(swaggerContainer.firstChild);
+        }
+
+        // Initialize Swagger UI
+        window.ui = SwaggerUIBundle({
+          url: url,
+          dom_id: '#swagger-ui',
+          deepLinking: true,
+          presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIStandalonePreset
+          ],
+          plugins: [
+            SwaggerUIBundle.plugins.DownloadUrl
+          ],
+          layout: "StandaloneLayout",
+          requestInterceptor: (req) => {
+            // Handle CORS for API requests
+            if (req.url.startsWith('http://localhost:8080')) {
+              // If we're requesting the API directly, we might need additional headers
+              req.headers = req.headers || {};
+              req.headers['Access-Control-Allow-Origin'] = '*';
+            }
+            return req;
+          },
+          onComplete: function() {
+            // Called when Swagger UI has loaded
+            console.log("Swagger UI initialization complete");
+          }
+        });
+      }
+
+      // Check API availability initially
+      checkApiAvailability(urlInput.value);
+
+      // Retry button event listener
+      retryButton.addEventListener('click', function() {
+        checkApiAvailability(urlInput.value);
+      });
+
+      // Update Swagger UI when form is submitted
+      document.getElementById('api-url-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        checkApiAvailability(urlInput.value);
+      });
+    }
+  </script>
+</body>
+</html>

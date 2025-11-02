@@ -14,9 +14,12 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -25,6 +28,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final UserDetailsService userDetailsService;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+    
+    // List of paths that should be excluded from JWT authentication
+    private final List<String> excludedPaths = Arrays.asList(
+            "/swagger-ui/**", 
+            "/swagger-ui.html", 
+            "/v3/api-docs/**", 
+            "/v3/api-docs", 
+            "/v3/api-docs.yaml", 
+            "/api-docs/**",
+            "/api-docs-json",
+            "/api/v1/auth/**",
+            "/api/v1/test/**",
+            "/actuator/**"
+    );
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return excludedPaths.stream().anyMatch(p -> pathMatcher.match(p, path));
+    }
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, 

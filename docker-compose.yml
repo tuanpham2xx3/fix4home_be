@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: fix4home-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: fix4home_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./sql_ver0.2.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - fix4home-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Spring Boot Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fix4home-app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"  # Using port 8080 instead of 3000
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/fix4home_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root123
+      # Override Hibernate ddl-auto to update (better for production) instead of create-drop
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    networks:
+      - fix4home-network
+
+networks:
+  fix4home-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
