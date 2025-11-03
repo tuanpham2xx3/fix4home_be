@@ -56,3 +56,4 @@ ALTER TABLE audit_logs MODIFY COLUMN success BOOLEAN COMMENT 'Whether the reques
 
 
 
+
