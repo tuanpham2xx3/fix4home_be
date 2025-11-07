@@ -31,9 +31,9 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     Page<Conversation> findByParticipantOrderByLastMessage(@Param("user") User user, Pageable pageable);
     
     // Find conversation by business context
-    Optional<Conversation> findByServiceRequestId(Long serviceRequestId);
-    Optional<Conversation> findByServicePostId(Long servicePostId);
-    Optional<Conversation> findByConsultationId(Long consultationId);
+    Optional<Conversation> findByServiceRequest_Id(Long serviceRequestId);
+    Optional<Conversation> findByServicePost_Id(Long servicePostId);
+    Optional<Conversation> findByConsultation_Id(Long consultationId);
     
     // Find existing conversation between two users
     @Query("SELECT c FROM Conversation c WHERE " +
@@ -45,7 +45,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     @Query("SELECT c FROM Conversation c WHERE " +
            "((c.customer = :customer AND c.technician = :technician) OR " +
            " (c.customer = :technician AND c.technician = :customer)) AND " +
-           "c.serviceRequestId = :serviceRequestId")
+           "c.serviceRequest.id = :serviceRequestId")
     Optional<Conversation> findByParticipantsAndServiceRequest(
             @Param("customer") User customer, 
             @Param("technician") User technician, 
@@ -64,9 +64,9 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     // Check if conversation exists between participants with business context
     @Query("SELECT COUNT(c) > 0 FROM Conversation c WHERE " +
            "c.customer = :customer AND c.technician = :technician AND " +
-           "(c.serviceRequestId = :serviceRequestId OR " +
-           " c.servicePostId = :servicePostId OR " +
-           " c.consultationId = :consultationId)")
+           "(c.serviceRequest.id = :serviceRequestId OR " +
+           " c.servicePost.id = :servicePostId OR " +
+           " c.consultation.id = :consultationId)")
     boolean existsByParticipantsAndBusinessContext(
             @Param("customer") User customer,
             @Param("technician") User technician,

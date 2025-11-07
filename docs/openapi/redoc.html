@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix4Home API - ReDoc</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .top-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .top-banner h1 {
+            margin: 0;
+            font-size: 2em;
+        }
+        
+        .top-banner p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        
+        .nav-links {
+            background: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .nav-links a {
+            margin: 0 10px;
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .nav-links a:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        redoc {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-banner">
+        <h1>🏠 Fix4Home API Documentation</h1>
+        <p>ReDoc - Beautiful API Documentation</p>
+    </div>
+    
+    <div class="nav-links">
+        <a href="swagger-ui.html">🔄 Switch to Swagger UI</a>
+        <a href="openapi.yaml" download>⬇️ Download YAML</a>
+        <a href="../api/README_API.md" target="_blank">📖 API Guide</a>
+    </div>
+    
+    <redoc spec-url='./openapi.yaml'></redoc>
+    
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+</body>
+</html>
+

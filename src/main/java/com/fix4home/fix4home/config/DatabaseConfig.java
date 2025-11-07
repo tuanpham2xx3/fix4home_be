@@ -70,7 +70,6 @@ public class DatabaseConfig {
      */
     @Bean
     @Primary
-    @ConfigurationProperties("spring.datasource.hikari")
     public DataSource dataSource() {
         HikariConfig config = new HikariConfig();
         

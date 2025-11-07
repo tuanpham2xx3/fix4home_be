@@ -31,6 +31,12 @@ public class TechnicianProfile {
     @Column(name = "experience")
     private String experience;
     
+    @Column(name = "experience_years")
+    private Integer experienceYears;
+    
+    @Column(columnDefinition = "TEXT")
+    private String description;
+    
     @Column(columnDefinition = "FLOAT DEFAULT 0")
     @Builder.Default
     private Float rating = 0.0f;

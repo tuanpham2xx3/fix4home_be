@@ -1,6 +1,6 @@
 # Multi-stage Docker build for Fix4Home Backend
 # Stage 1: Build application
-FROM openjdk:21-jdk-slim AS builder
+FROM eclipse-temurin:21-jdk-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -20,16 +20,13 @@ COPY src ./src
 RUN ./mvnw clean package -DskipTests
 
 # Stage 2: Runtime image
-FROM openjdk:21-jre-slim AS runtime
+FROM eclipse-temurin:21-jre-alpine AS runtime
 
 # Install necessary packages for MySQL client (for healthchecks and debugging)
-RUN apt-get update && \
-    apt-get install -y curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache curl
 
 # Create app user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN addgroup -S appuser && adduser -S appuser -G appuser
 
 # Set working directory
 WORKDIR /app
@@ -37,8 +34,8 @@ WORKDIR /app
 # Copy built JAR from builder stage
 COPY --from=builder /app/target/*.jar app.jar
 
-# Create uploads directory and set permissions
-RUN mkdir -p uploads && \
+# Create uploads and logs directories and set permissions
+RUN mkdir -p uploads logs && \
     chown -R appuser:appuser /app
 
 # Switch to non-root user

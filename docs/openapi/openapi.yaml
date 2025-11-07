@@ -1,0 +1,3059 @@
+openapi: 3.0.3
+info:
+  title: Fix4Home API
+  description: |
+    # Fix4Home - Home Repair Service Platform API
+    
+    Complete API documentation for the Fix4Home platform connecting customers with technicians for home repair services.
+    
+    ## Features
+    - 🔐 JWT-based authentication with email activation
+    - 🔑 Temporary password reset via email links
+    - 👥 Multi-role support (Customer, Technician, Admin)
+    - 🛠️ Service request management
+    - 💬 Real-time chat system
+    - 💰 Payment processing
+    - ⭐ Feedback and ratings
+    - 📍 Location-based technician matching
+    - 📝 Service post & consultation system
+    - 🚨 Complaint handling
+    
+    ## Authentication
+    Most endpoints require authentication via JWT token in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+    
+    ## Password Reset Flow
+    The system uses a temporary password approach for password reset:
+    
+    1. **Request Reset**: User calls `/auth/forgot-password` with their email
+    2. **Email Sent**: System generates a temporary password (e.g., "Abc123def") and sends it via email
+    3. **Activation**: User clicks the activation link in the email to activate the temporary password
+    4. **Login**: User logs in with the temporary password
+    5. **Force Change**: System redirects user to change password (mustChangePassword flag is set)
+    
+    ### Rate Limiting
+    - Maximum 5 password reset emails per hour per email address
+    - 60-second cooldown between resend attempts
+    - Maximum 3 resend attempts per token
+    - Tokens expire after 30 minutes
+    
+  version: 1.0.0
+  contact:
+    name: Fix4Home API Support
+    email: support@fix4home.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8100/api/v1
+    description: Local Development Server
+  - url: https://api.fix4home.com/api/v1
+    description: Production Server
+  - url: https://staging-api.fix4home.com/api/v1
+    description: Staging Server
+
+tags:
+  - name: Authentication
+    description: User registration, login, and authentication management
+  - name: Customer Management
+    description: Customer profile and address management
+  - name: Technician Management
+    description: Technician profiles, skills, and availability
+  - name: Service Management
+    description: Service catalog management
+  - name: Service Requests
+    description: Service request lifecycle management
+  - name: Service Posts
+    description: Customer service posts and technician responses
+  - name: Consultations
+    description: Consultation proposals and management
+  - name: Payments
+    description: Payment processing and history
+  - name: Feedback
+    description: Reviews and ratings system
+  - name: Notifications
+    description: User notification management
+  - name: Chat
+    description: Real-time messaging between customers and technicians
+  - name: Complaints
+    description: Complaint filing and resolution
+  - name: Admin
+    description: System administration and management
+  - name: Testing
+    description: Health checks and system testing
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login endpoint
+
+  schemas:
+    # ============= Common Schemas =============
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation completed successfully"
+        data:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-11-03T10:30:00Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Error description"
+        data:
+          type: object
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+
+    PaginatedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                type: object
+            totalElements:
+              type: integer
+            totalPages:
+              type: integer
+            currentPage:
+              type: integer
+            pageSize:
+              type: integer
+
+    # ============= User & Auth Schemas =============
+    UserRole:
+      type: string
+      enum: [CUSTOMER, TECHNICIAN, ADMIN]
+      example: CUSTOMER
+
+    UserStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, PENDING_APPROVAL, REJECTED]
+      example: ACTIVE
+
+    Gender:
+      type: string
+      enum: [MALE, FEMALE, OTHER]
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - role
+        - fullName
+        - phone
+      properties:
+        email:
+          type: string
+          format: email
+          example: customer@example.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: password123
+        role:
+          $ref: '#/components/schemas/UserRole'
+        fullName:
+          type: string
+          example: John Doe
+        phone:
+          type: string
+          example: "0123456789"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: customer@example.com
+        password:
+          type: string
+          format: password
+          example: password123
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/User'
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address to send password reset link
+          example: user@example.com
+
+    PasswordResetTokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+          example: true
+        message:
+          type: string
+          description: Response message
+          example: "Password reset email sent successfully"
+        tokenId:
+          type: integer
+          format: int64
+          description: Internal token ID for tracking
+          example: 123
+        canResend:
+          type: boolean
+          description: Whether user can resend the email
+          example: true
+        sendCount:
+          type: integer
+          description: Number of times email has been sent
+          minimum: 1
+          maximum: 3
+          example: 1
+        maxSends:
+          type: integer
+          description: Maximum number of sends allowed
+          example: 3
+        nextResendAt:
+          type: string
+          format: date-time
+          description: When the next resend is allowed (60 seconds cooldown)
+          example: "2024-11-03T10:31:00Z"
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the token expires (30 minutes)
+          example: "2024-11-03T11:00:00Z"
+
+    ActivationTokenInfo:
+      type: object
+      properties:
+        tokenId:
+          type: integer
+          format: int64
+          description: Internal token ID
+          example: 123
+        email:
+          type: string
+          format: email
+          description: Email address associated with token
+          example: user@example.com
+        action:
+          type: string
+          enum: [registration, password_reset, email_verification]
+          description: Type of activation action
+          example: password_reset
+        userId:
+          type: integer
+          format: int64
+          description: User ID associated with token
+          example: 456
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the token expires
+          example: "2024-11-03T11:00:00Z"
+        isExpired:
+          type: boolean
+          description: Whether the token has expired
+          example: false
+        isUsed:
+          type: boolean
+          description: Whether the token has been used
+          example: false
+        isValid:
+          type: boolean
+          description: Whether the token is valid (not expired and not used)
+          example: true
+        sendCount:
+          type: integer
+          description: Number of times email was sent
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          description: When the token was created
+          example: "2024-11-03T10:30:00Z"
+
+    ActivationLinkResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the activation link was sent successfully
+          example: true
+        tokenId:
+          type: integer
+          format: int64
+          description: Internal token ID
+          example: 123
+        canResend:
+          type: boolean
+          description: Whether the activation link can be resent
+          example: true
+        sendCount:
+          type: integer
+          description: Number of times activation email was sent
+          example: 1
+        maxSends:
+          type: integer
+          description: Maximum number of sends allowed
+          example: 3
+        nextResendAt:
+          type: string
+          format: date-time
+          description: When the next resend is allowed (if canResend is false)
+          example: "2024-11-03T10:31:00Z"
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the activation token expires
+          example: "2024-11-03T11:00:00Z"
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        username:
+          type: string
+          example: john_doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        phoneNumber:
+          type: string
+          example: "0123456789"
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        mustChangePassword:
+          type: boolean
+          description: Whether user must change password (set after temporary password activation)
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ============= Address Schemas =============
+    Address:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        recipientName:
+          type: string
+          example: John Doe
+        recipientPhone:
+          type: string
+          example: "0123456789"
+        addressLine:
+          type: string
+          example: 123 Main Street
+        ward:
+          type: string
+          example: Ward 1
+        district:
+          type: string
+          example: District 1
+        city:
+          type: string
+          example: Ho Chi Minh City
+        latitude:
+          type: number
+          format: double
+          example: 10.762622
+        longitude:
+          type: number
+          format: double
+          example: 106.660172
+
+    AddressRequest:
+      type: object
+      required:
+        - addressLine
+        - city
+      properties:
+        recipientName:
+          type: string
+          example: John Doe
+        recipientPhone:
+          type: string
+          example: "0123456789"
+        addressLine:
+          type: string
+          example: 123 Main Street
+        ward:
+          type: string
+          example: Ward 1
+        district:
+          type: string
+          example: District 1
+        city:
+          type: string
+          example: Ho Chi Minh City
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+
+    # ============= Customer Schemas =============
+    CustomerProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+          example: John Doe
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          $ref: '#/components/schemas/Gender'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateCustomerProfileRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          example: John Doe Updated
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          $ref: '#/components/schemas/Gender'
+
+    # ============= Technician Schemas =============
+    TechnicianStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, PENDING_APPROVAL, REJECTED]
+
+    TechnicianProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+          example: Tech Smith
+        skills:
+          type: string
+          example: Electrical, Plumbing
+        experience:
+          type: string
+          example: 5 years experience
+        rating:
+          type: number
+          format: float
+          example: 4.5
+        status:
+          $ref: '#/components/schemas/TechnicianStatus'
+        isOnline:
+          type: boolean
+          example: true
+        lastSeenAt:
+          type: string
+          format: date-time
+        currentLatitude:
+          type: number
+          format: double
+        currentLongitude:
+          type: number
+          format: double
+        currentAddress:
+          type: string
+        workingRadius:
+          type: integer
+          example: 10
+        verificationDocuments:
+          type: string
+        rejectionReason:
+          type: string
+        approvedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    UpdateTechnicianProfileRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+        skills:
+          type: string
+        experience:
+          type: string
+        currentLatitude:
+          type: number
+          format: double
+        currentLongitude:
+          type: number
+          format: double
+        currentAddress:
+          type: string
+        workingRadius:
+          type: integer
+
+    Skill:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: Electrical Repair
+        description:
+          type: string
+          example: Expert in electrical systems
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+
+    # ============= Service Schemas =============
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: Plumbing Service
+        description:
+          type: string
+          example: Professional plumbing repairs
+        basePrice:
+          type: number
+          format: decimal
+          example: 200000
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+
+    CreateServiceRequest:
+      type: object
+      required:
+        - name
+        - basePrice
+      properties:
+        name:
+          type: string
+          example: New Service
+        description:
+          type: string
+        basePrice:
+          type: number
+          format: decimal
+          example: 150000
+
+    # ============= Service Request Schemas =============
+    ServiceRequestStatus:
+      type: string
+      enum: [PENDING, ACCEPTED, IN_PROGRESS, COMPLETED, CANCELLED, COMPLAINING]
+
+    ServiceRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        technicianId:
+          type: integer
+          format: int64
+        addressId:
+          type: integer
+          format: int64
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ServiceRequestStatus'
+        scheduledTime:
+          type: string
+          format: date-time
+        completedTime:
+          type: string
+          format: date-time
+        price:
+          type: number
+          format: decimal
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateServiceRequestRequest:
+      type: object
+      required:
+        - serviceId
+        - addressId
+        - description
+      properties:
+        serviceId:
+          type: integer
+          format: int64
+        addressId:
+          type: integer
+          format: int64
+        description:
+          type: string
+          example: Leaking pipe in bathroom
+        scheduledTime:
+          type: string
+          format: date-time
+
+    # ============= Service Post Schemas =============
+    ServicePostType:
+      type: string
+      enum: [URGENT, CONSULTATION, SCHEDULED, QUOTATION]
+
+    ServicePostStatus:
+      type: string
+      enum: [DRAFT, POSTED, RESPONSES_RECEIVED, TECHNICIAN_SELECTED, IN_PROGRESS, COMPLETED, CANCELLED, EXPIRED]
+
+    ServicePost:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        addressId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          example: Need urgent plumbing repair
+        description:
+          type: string
+        estimatedBudget:
+          type: number
+          format: decimal
+        preferredTime:
+          type: string
+          format: date-time
+        type:
+          $ref: '#/components/schemas/ServicePostType'
+        status:
+          $ref: '#/components/schemas/ServicePostStatus'
+        maxTechnicians:
+          type: integer
+          example: 5
+        expiresAt:
+          type: string
+          format: date-time
+        selectedTechnicianId:
+          type: integer
+          format: int64
+        finalPrice:
+          type: number
+          format: decimal
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateServicePostRequest:
+      type: object
+      required:
+        - serviceId
+        - addressId
+        - title
+        - description
+        - type
+      properties:
+        serviceId:
+          type: integer
+          format: int64
+        addressId:
+          type: integer
+          format: int64
+        title:
+          type: string
+        description:
+          type: string
+        estimatedBudget:
+          type: number
+          format: decimal
+        preferredTime:
+          type: string
+          format: date-time
+        type:
+          $ref: '#/components/schemas/ServicePostType'
+        maxTechnicians:
+          type: integer
+          default: 5
+
+    ServicePostResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        servicePostId:
+          type: integer
+          format: int64
+        technicianId:
+          type: integer
+          format: int64
+        message:
+          type: string
+        quotedPrice:
+          type: number
+          format: decimal
+        estimatedDuration:
+          type: integer
+          description: Duration in hours
+        proposedTime:
+          type: string
+          format: date-time
+        isSelected:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateServicePostResponseRequest:
+      type: object
+      required:
+        - message
+        - quotedPrice
+      properties:
+        message:
+          type: string
+          example: I can help with this repair
+        quotedPrice:
+          type: number
+          format: decimal
+          example: 300000
+        estimatedDuration:
+          type: integer
+          example: 2
+        proposedTime:
+          type: string
+          format: date-time
+
+    # ============= Consultation Schemas =============
+    ConsultationStatus:
+      type: string
+      enum: [PENDING, ACCEPTED, REJECTED]
+
+    Consultation:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        servicePostId:
+          type: integer
+          format: int64
+        technicianId:
+          type: integer
+          format: int64
+        proposal:
+          type: string
+        quotedPrice:
+          type: number
+          format: decimal
+        notes:
+          type: string
+        status:
+          $ref: '#/components/schemas/ConsultationStatus'
+        submittedAt:
+          type: string
+          format: date-time
+        respondedAt:
+          type: string
+          format: date-time
+
+    CreateConsultationRequest:
+      type: object
+      required:
+        - proposal
+        - quotedPrice
+      properties:
+        proposal:
+          type: string
+          example: I recommend replacing the entire pipe system
+        quotedPrice:
+          type: number
+          format: decimal
+          example: 500000
+        notes:
+          type: string
+
+    # ============= Payment Schemas =============
+    PaymentMethod:
+      type: string
+      enum: [CASH, BANK_TRANSFER, CREDIT_CARD, E_WALLET]
+
+    PaymentStatus:
+      type: string
+      enum: [PENDING, COMPLETED, FAILED, REFUNDED]
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        serviceRequestId:
+          type: integer
+          format: int64
+        amount:
+          type: number
+          format: decimal
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        transactionId:
+          type: string
+        notes:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePaymentRequest:
+      type: object
+      required:
+        - serviceRequestId
+        - amount
+        - paymentMethod
+      properties:
+        serviceRequestId:
+          type: integer
+          format: int64
+        amount:
+          type: number
+          format: decimal
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        notes:
+          type: string
+
+    # ============= Feedback Schemas =============
+    Feedback:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        serviceRequestId:
+          type: integer
+          format: int64
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comment:
+          type: string
+          example: Excellent service!
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateFeedbackRequest:
+      type: object
+      required:
+        - serviceRequestId
+        - rating
+      properties:
+        serviceRequestId:
+          type: integer
+          format: int64
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+
+    # ============= Notification Schemas =============
+    NotificationType:
+      type: string
+      enum: [INFO, WARNING, SUCCESS, ERROR]
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          example: New Service Request
+        message:
+          type: string
+          example: You have a new service request
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    # ============= Chat Schemas =============
+    ConversationStatus:
+      type: string
+      enum: [ACTIVE, ARCHIVED, BLOCKED]
+
+    MessageType:
+      type: string
+      enum: [TEXT, IMAGE, LOCATION, SYSTEM, QUOTATION, FILE]
+
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        serviceRequestId:
+          type: integer
+          format: int64
+        servicePostId:
+          type: integer
+          format: int64
+        consultationId:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        technicianId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ConversationStatus'
+        lastMessageAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        conversationId:
+          type: integer
+          format: int64
+        senderId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        messageType:
+          $ref: '#/components/schemas/MessageType'
+        attachmentUrl:
+          type: string
+        metadata:
+          type: object
+        isRead:
+          type: boolean
+        sentAt:
+          type: string
+          format: date-time
+
+    SendMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+        messageType:
+          $ref: '#/components/schemas/MessageType'
+        attachmentUrl:
+          type: string
+        metadata:
+          type: object
+
+    # ============= Complaint Schemas =============
+    ComplaintStatus:
+      type: string
+      enum: [PENDING, INVESTIGATING, RESOLVED, REJECTED]
+
+    Complaint:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        serviceRequestId:
+          type: integer
+          format: int64
+        complainantId:
+          type: integer
+          format: int64
+        accusedId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ComplaintStatus'
+        adminResponse:
+          type: string
+        resolvedBy:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+
+    CreateComplaintRequest:
+      type: object
+      required:
+        - serviceRequestId
+        - accusedId
+        - reason
+        - description
+      properties:
+        serviceRequestId:
+          type: integer
+          format: int64
+        accusedId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 200
+        description:
+          type: string
+          minLength: 20
+          maxLength: 2000
+
+paths:
+  # ============= Authentication Endpoints =============
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Register a new user account (Customer, Technician, or Admin)
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              customer:
+                summary: Register Customer
+                value:
+                  email: customer@example.com
+                  password: password123
+                  role: CUSTOMER
+                  fullName: John Doe
+                  phone: "0123456789"
+              technician:
+                summary: Register Technician
+                value:
+                  email: technician@example.com
+                  password: password123
+                  role: TECHNICIAN
+                  fullName: Tech Smith
+                  phone: "0987654321"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and receive JWT token
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate current JWT token
+      operationId: logout
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset with temporary password
+      description: |
+        Request a password reset. A temporary password will be generated and sent via email.
+        User must click the activation link in the email to activate the temporary password,
+        then login and change to a new password.
+      operationId: forgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+            example:
+              email: user@example.com
+      responses:
+        '200':
+          description: Password reset email sent successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PasswordResetTokenResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests - rate limit exceeded
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PasswordResetTokenResponse'
+        '500':
+          description: Failed to send password reset email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/activate/{token}:
+    get:
+      tags:
+        - Authentication
+      summary: Activate account or temporary password
+      description: |
+        Activate user account (for registration) or activate temporary password (for password reset).
+        For password reset, this will apply the temporary password and set mustChangePassword flag.
+      operationId: activateAccount
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Activation token from email
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Activation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                registration:
+                  summary: Account activation
+                  value:
+                    success: true
+                    message: "Account activated successfully"
+                password_reset:
+                  summary: Temporary password activation
+                  value:
+                    success: true
+                    message: "Temporary password activated. Please login and change your password."
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/check-token/{token}:
+    get:
+      tags:
+        - Authentication
+      summary: Check activation token status
+      description: |
+        Check the status of an activation token without consuming it.
+        Useful for frontend to validate token before showing activation UI.
+      operationId: checkTokenStatus
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Activation token to check
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Token information retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ActivationTokenInfo'
+        '400':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/resend-password-reset:
+    post:
+      tags:
+        - Authentication
+      summary: Resend password reset email
+      description: |
+        Resend password reset email with the same temporary password.
+        Subject to rate limiting (60 seconds cooldown, max 3 sends).
+      operationId: resendPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Password reset email resent successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PasswordResetTokenResponse'
+        '400':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/send-activation-link:
+    post:
+      tags:
+        - Authentication
+      summary: Send activation link for registration
+      description: |
+        Send an activation link to the user's email for account activation.
+        Used during registration process to activate new accounts.
+        Subject to rate limiting (60 seconds cooldown, max 3 sends).
+      operationId: sendActivationLink
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendVerificationCodeRequest'
+      responses:
+        '200':
+          description: Activation link sent successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ActivationLinkResponse'
+        '400':
+          description: Invalid request or user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/resend-activation-link:
+    post:
+      tags:
+        - Authentication
+      summary: Resend activation link for registration
+      description: |
+        Resend the activation link to the user's email for account activation.
+        Reuses the same activation token if still valid.
+        Subject to rate limiting (60 seconds cooldown, max 3 sends).
+      operationId: resendActivationLink
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendVerificationCodeRequest'
+      responses:
+        '200':
+          description: Activation link resent successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ActivationLinkResponse'
+        '400':
+          description: Invalid request or user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded (cooldown or max sends reached)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============= Customer Management Endpoints =============
+  /customers/profile:
+    get:
+      tags:
+        - Customer Management
+      summary: Get customer profile
+      description: Get the authenticated customer's profile
+      operationId: getCustomerProfile
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CustomerProfile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Customer Management
+      summary: Update customer profile
+      description: Update the authenticated customer's profile
+      operationId: updateCustomerProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCustomerProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CustomerProfile'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /customers/addresses:
+    get:
+      tags:
+        - Customer Management
+      summary: Get customer addresses
+      description: Get all addresses for the authenticated customer
+      operationId: getCustomerAddresses
+      responses:
+        '200':
+          description: Addresses retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Address'
+
+    post:
+      tags:
+        - Customer Management
+      summary: Add customer address
+      description: Add a new address for the authenticated customer
+      operationId: addCustomerAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressRequest'
+      responses:
+        '201':
+          description: Address added successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Address'
+
+  /customers/addresses/{addressId}:
+    put:
+      tags:
+        - Customer Management
+      summary: Update address
+      description: Update an existing address
+      operationId: updateAddress
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressRequest'
+      responses:
+        '200':
+          description: Address updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Address'
+
+    delete:
+      tags:
+        - Customer Management
+      summary: Delete address
+      description: Delete an existing address
+      operationId: deleteAddress
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Address deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ============= Technician Management Endpoints =============
+  /technicians/profile:
+    get:
+      tags:
+        - Technician Management
+      summary: Get technician profile
+      description: Get the authenticated technician's profile
+      operationId: getTechnicianProfile
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TechnicianProfile'
+
+    put:
+      tags:
+        - Technician Management
+      summary: Update technician profile
+      description: Update the authenticated technician's profile
+      operationId: updateTechnicianProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTechnicianProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TechnicianProfile'
+
+  /technicians/active:
+    get:
+      tags:
+        - Technician Management
+      summary: Get active technicians
+      description: Get list of all active technicians
+      operationId: getActiveTechnicians
+      responses:
+        '200':
+          description: Active technicians retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TechnicianProfile'
+
+  /technicians/search:
+    get:
+      tags:
+        - Technician Management
+      summary: Search technicians
+      description: Search for technicians by keyword
+      operationId: searchTechnicians
+      parameters:
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Search keyword
+      responses:
+        '200':
+          description: Search results retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TechnicianProfile'
+
+  /technicians/skills:
+    get:
+      tags:
+        - Technician Management
+      summary: Get all skills
+      description: Get list of all available skills
+      operationId: getAllSkills
+      responses:
+        '200':
+          description: Skills retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Skill'
+
+    post:
+      tags:
+        - Technician Management
+      summary: Create skill (Admin only)
+      description: Create a new skill (Admin only)
+      operationId: createSkill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: New Skill
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Skill created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Skill'
+
+  # ============= Service Management Endpoints =============
+  /services:
+    get:
+      tags:
+        - Service Management
+      summary: Get all services
+      description: Get list of all available services
+      operationId: getAllServices
+      responses:
+        '200':
+          description: Services retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Service'
+
+    post:
+      tags:
+        - Service Management
+      summary: Create service (Admin only)
+      description: Create a new service (Admin only)
+      operationId: createService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequest'
+      responses:
+        '201':
+          description: Service created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Service'
+
+  /services/{serviceId}:
+    get:
+      tags:
+        - Service Management
+      summary: Get service by ID
+      description: Get detailed information about a specific service
+      operationId: getServiceById
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Service retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Service'
+
+    put:
+      tags:
+        - Service Management
+      summary: Update service (Admin only)
+      description: Update an existing service (Admin only)
+      operationId: updateService
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequest'
+      responses:
+        '200':
+          description: Service updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Service'
+
+    delete:
+      tags:
+        - Service Management
+      summary: Delete service (Admin only)
+      description: Delete an existing service (Admin only)
+      operationId: deleteService
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Service deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ============= Service Request Endpoints =============
+  /service-requests:
+    get:
+      tags:
+        - Service Requests
+      summary: Get customer service requests
+      description: Get all service requests for the authenticated customer
+      operationId: getCustomerServiceRequests
+      responses:
+        '200':
+          description: Service requests retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ServiceRequest'
+
+    post:
+      tags:
+        - Service Requests
+      summary: Create service request
+      description: Create a new service request
+      operationId: createServiceRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequestRequest'
+      responses:
+        '201':
+          description: Service request created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ServiceRequest'
+
+  /service-requests/{requestId}:
+    get:
+      tags:
+        - Service Requests
+      summary: Get service request details
+      description: Get detailed information about a specific service request
+      operationId: getServiceRequestDetails
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Service request retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ServiceRequest'
+
+  /service-requests/{requestId}/cancel:
+    put:
+      tags:
+        - Service Requests
+      summary: Cancel service request
+      description: Cancel an existing service request
+      operationId: cancelServiceRequest
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Service request cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /service-requests/{requestId}/accept:
+    put:
+      tags:
+        - Service Requests
+      summary: Accept assignment (Technician)
+      description: Technician accepts a service request assignment
+      operationId: acceptServiceRequest
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Service request accepted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /service-requests/{requestId}/complete:
+    put:
+      tags:
+        - Service Requests
+      summary: Complete service request (Technician)
+      description: Technician marks service request as completed
+      operationId: completeServiceRequest
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Service request completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ============= Service Post Endpoints =============
+  /service-posts:
+    get:
+      tags:
+        - Service Posts
+      summary: Get service posts
+      description: Get list of service posts
+      operationId: getServicePosts
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ServicePostStatus'
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ServicePostType'
+      responses:
+        '200':
+          description: Service posts retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ServicePost'
+
+    post:
+      tags:
+        - Service Posts
+      summary: Create service post
+      description: Create a new service post
+      operationId: createServicePost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServicePostRequest'
+      responses:
+        '201':
+          description: Service post created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ServicePost'
+
+  /service-posts/{postId}:
+    get:
+      tags:
+        - Service Posts
+      summary: Get service post by ID
+      description: Get detailed information about a specific service post
+      operationId: getServicePostById
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Service post retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ServicePost'
+
+  /service-posts/{postId}/responses:
+    get:
+      tags:
+        - Service Posts
+      summary: Get post responses
+      description: Get all responses for a service post
+      operationId: getServicePostResponses
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Responses retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ServicePostResponse'
+
+    post:
+      tags:
+        - Service Posts
+      summary: Submit response to post
+      description: Technician submits a response to a service post
+      operationId: submitServicePostResponse
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServicePostResponseRequest'
+      responses:
+        '201':
+          description: Response submitted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ServicePostResponse'
+
+  # ============= Consultation Endpoints =============
+  /consultations:
+    post:
+      tags:
+        - Consultations
+      summary: Submit consultation
+      description: Technician submits a consultation proposal
+      operationId: submitConsultation
+      parameters:
+        - name: servicePostId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsultationRequest'
+      responses:
+        '201':
+          description: Consultation submitted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Consultation'
+
+  /consultations/{consultationId}:
+    get:
+      tags:
+        - Consultations
+      summary: Get consultation details
+      description: Get detailed information about a specific consultation
+      operationId: getConsultationById
+      parameters:
+        - name: consultationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Consultation retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Consultation'
+
+  /consultations/{consultationId}/accept:
+    put:
+      tags:
+        - Consultations
+      summary: Accept consultation
+      description: Customer accepts a consultation proposal
+      operationId: acceptConsultation
+      parameters:
+        - name: consultationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Consultation accepted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /consultations/{consultationId}/reject:
+    put:
+      tags:
+        - Consultations
+      summary: Reject consultation
+      description: Customer rejects a consultation proposal
+      operationId: rejectConsultation
+      parameters:
+        - name: consultationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Consultation rejected successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ============= Payment Endpoints =============
+  /payments:
+    post:
+      tags:
+        - Payments
+      summary: Create payment
+      description: Create a new payment for a service request
+      operationId: createPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Payment'
+
+  /payments/history:
+    get:
+      tags:
+        - Payments
+      summary: Get payment history
+      description: Get payment history for the authenticated user
+      operationId: getPaymentHistory
+      responses:
+        '200':
+          description: Payment history retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Payment'
+
+  /payments/methods:
+    get:
+      tags:
+        - Payments
+      summary: Get payment methods
+      description: Get list of available payment methods
+      operationId: getPaymentMethods
+      responses:
+        '200':
+          description: Payment methods retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: string
+                        example: ["CASH", "BANK_TRANSFER", "CREDIT_CARD", "E_WALLET"]
+
+  # ============= Feedback Endpoints =============
+  /feedback:
+    post:
+      tags:
+        - Feedback
+      summary: Create feedback
+      description: Create feedback for a completed service request
+      operationId: createFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFeedbackRequest'
+      responses:
+        '201':
+          description: Feedback created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Feedback'
+
+  /feedback/service/{serviceId}:
+    get:
+      tags:
+        - Feedback
+      summary: Get service feedback
+      description: Get all feedback for a specific service
+      operationId: getServiceFeedback
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Feedback retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Feedback'
+
+  /feedbacks/public:
+    get:
+      tags:
+        - Feedback
+      summary: Get public feedbacks
+      description: Get all public feedbacks
+      operationId: getPublicFeedbacks
+      responses:
+        '200':
+          description: Feedbacks retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Feedback'
+
+  /feedbacks/my:
+    get:
+      tags:
+        - Feedback
+      summary: Get my feedbacks
+      description: Get all feedbacks created by the authenticated user
+      operationId: getMyFeedbacks
+      responses:
+        '200':
+          description: Feedbacks retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Feedback'
+
+  # ============= Notification Endpoints =============
+  /notifications/my:
+    get:
+      tags:
+        - Notifications
+      summary: Get my notifications
+      description: Get all notifications for the authenticated user
+      operationId: getMyNotifications
+      responses:
+        '200':
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Notification'
+
+  /notifications/unread-count:
+    get:
+      tags:
+        - Notifications
+      summary: Get unread count
+      description: Get count of unread notifications
+      operationId: getUnreadNotificationCount
+      responses:
+        '200':
+          description: Unread count retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          count:
+                            type: integer
+                            example: 5
+
+  /notifications/{notificationId}/read:
+    put:
+      tags:
+        - Notifications
+      summary: Mark as read
+      description: Mark a notification as read
+      operationId: markNotificationAsRead
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /notifications/{notificationId}:
+    delete:
+      tags:
+        - Notifications
+      summary: Delete notification
+      description: Delete a notification
+      operationId: deleteNotification
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Notification deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ============= Chat Endpoints =============
+  /conversations:
+    get:
+      tags:
+        - Chat
+      summary: Get conversations
+      description: Get all conversations for the authenticated user
+      operationId: getConversations
+      responses:
+        '200':
+          description: Conversations retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Conversation'
+
+  /conversations/{conversationId}/messages:
+    get:
+      tags:
+        - Chat
+      summary: Get messages
+      description: Get all messages in a conversation
+      operationId: getMessages
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          content:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Message'
+
+    post:
+      tags:
+        - Chat
+      summary: Send message
+      description: Send a message in a conversation
+      operationId: sendMessage
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Message'
+
+  # ============= Complaint Endpoints =============
+  /complaints:
+    get:
+      tags:
+        - Complaints
+      summary: Get complaints
+      description: Get all complaints (filtered by role)
+      operationId: getComplaints
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ComplaintStatus'
+      responses:
+        '200':
+          description: Complaints retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Complaint'
+
+    post:
+      tags:
+        - Complaints
+      summary: Create complaint
+      description: File a new complaint
+      operationId: createComplaint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComplaintRequest'
+      responses:
+        '201':
+          description: Complaint created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Complaint'
+
+  /complaints/{complaintId}:
+    get:
+      tags:
+        - Complaints
+      summary: Get complaint details
+      description: Get detailed information about a specific complaint
+      operationId: getComplaintById
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Complaint retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Complaint'
+
+  /complaints/{complaintId}/resolve:
+    put:
+      tags:
+        - Complaints
+      summary: Resolve complaint (Admin)
+      description: Admin resolves a complaint
+      operationId: resolveComplaint
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - adminResponse
+              properties:
+                adminResponse:
+                  type: string
+                  example: Complaint resolved after investigation
+      responses:
+        '200':
+          description: Complaint resolved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ============= Admin Endpoints =============
+  /admin/dashboard:
+    get:
+      tags:
+        - Admin
+      summary: Get admin dashboard
+      description: Get system dashboard overview (Admin only)
+      operationId: getAdminDashboard
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          totalUsers:
+                            type: integer
+                          totalServiceRequests:
+                            type: integer
+                          totalRevenue:
+                            type: number
+                            format: decimal
+                          activeTechnicians:
+                            type: integer
+
+  /admin/users:
+    get:
+      tags:
+        - Admin
+      summary: Get all users
+      description: Get list of all users (Admin only)
+      operationId: getAllUsers
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/UserRole'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
+
+  /admin/users/status:
+    put:
+      tags:
+        - Admin
+      summary: Update user status
+      description: Update user status (Admin only)
+      operationId: updateUserStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - status
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+                status:
+                  $ref: '#/components/schemas/UserStatus'
+      responses:
+        '200':
+          description: User status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /admin/system/health:
+    get:
+      tags:
+        - Admin
+      summary: Get system health
+      description: Get system health status (Admin only)
+      operationId: getSystemHealth
+      responses:
+        '200':
+          description: System health retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: UP
+                          database:
+                            type: string
+                            example: UP
+                          diskSpace:
+                            type: string
+                            example: UP
+
+  /admin/reports/system:
+    get:
+      tags:
+        - Admin
+      summary: Get system reports
+      description: Get comprehensive system reports (Admin only)
+      operationId: getSystemReports
+      responses:
+        '200':
+          description: Reports retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ============= Testing Endpoints =============
+  /test/health:
+    get:
+      tags:
+        - Testing
+      summary: Health check
+      description: Simple health check endpoint (no authentication required)
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: UP
+                          timestamp:
+                            type: string
+                            format: date-time
+
+  /test/database:
+    get:
+      tags:
+        - Testing
+      summary: Database test
+      description: Test database connectivity (no authentication required)
+      operationId: databaseTest
+      security: []
+      responses:
+        '200':
+          description: Database is connected
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: CONNECTED
+
+  /test/customer:
+    get:
+      tags:
+        - Testing
+      summary: Customer role test
+      description: Test endpoint for customer role (requires authentication)
+      operationId: customerRoleTest
+      responses:
+        '200':
+          description: Customer role verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /test/technician:
+    get:
+      tags:
+        - Testing
+      summary: Technician role test
+      description: Test endpoint for technician role (requires authentication)
+      operationId: technicianRoleTest
+      responses:
+        '200':
+          description: Technician role verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /test/admin:
+    get:
+      tags:
+        - Testing
+      summary: Admin role test
+      description: Test endpoint for admin role (requires authentication)
+      operationId: adminRoleTest
+      responses:
+        '200':
+          description: Admin role verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+

@@ -19,6 +19,7 @@ import com.fix4home.fix4home.security.CustomUserDetails;
 import com.fix4home.fix4home.security.JwtTokenProvider;
 import com.fix4home.fix4home.service.AuthService;
 import com.fix4home.fix4home.service.EmailVerificationService;
+import com.fix4home.fix4home.service.ActivationTokenService;
 import com.fix4home.fix4home.service.RefreshTokenService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -42,6 +43,7 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
     private final EmailVerificationService emailVerificationService;
+    private final ActivationTokenService activationTokenService;
     private final RateLimitConfig rateLimitConfig;
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
@@ -258,8 +260,8 @@ public class AuthController {
                     ApiResponse.<Void>success("If the email exists, a verification code has been sent", null));
         }
 
-        // Send verification code for registration verification
-        boolean emailSent = emailVerificationService.sendVerificationCode(
+        // Send verification for registration verification
+        boolean emailSent = emailVerificationService.sendVerification(
                 request.getEmail(), 
                 "email_verification", 
                 user.getId()
@@ -316,7 +318,7 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+    public ResponseEntity<ApiResponse<ActivationTokenService.PasswordResetTokenResponse>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request) {
         
         // Check if user exists with this email
@@ -325,25 +327,32 @@ public class AuthController {
         
         if (user == null) {
             // For security, we don't reveal if email exists or not
-            return ResponseEntity.ok(
-                    ApiResponse.<Void>success("If the email exists, a password reset code has been sent", null));
+            ActivationTokenService.PasswordResetTokenResponse response = 
+                ActivationTokenService.PasswordResetTokenResponse.builder()
+                    .success(true)
+                    .message("If the email exists, a password reset email with temporary password has been sent")
+                    .build();
+            return ResponseEntity.ok(ApiResponse.success("Password reset email sent", response));
         }
 
-        // Send verification code for password reset
-        boolean emailSent = emailVerificationService.sendVerificationCode(
-                request.getEmail(), 
-                "forgot_password", 
-                user.getId()
-        );
+        try {
+            // Generate and send password reset token with temp password
+            ActivationTokenService.PasswordResetTokenResponse response = 
+                activationTokenService.generatePasswordResetToken(user);
 
-        if (emailSent) {
-            log.info("Password reset code sent to email: {}", request.getEmail());
+            log.info("Password reset email with temporary password sent to: {}", request.getEmail());
             return ResponseEntity.ok(
-                    ApiResponse.<Void>success("Password reset code sent successfully", null));
-        } else {
-            log.error("Failed to send password reset code to email: {}", request.getEmail());
+                    ApiResponse.success("Password reset email sent successfully", response));
+        } catch (Exception e) {
+            log.error("Failed to send password reset email to: {}", request.getEmail(), e);
+            
+            if (e.getMessage().contains("60 seconds") || e.getMessage().contains("Maximum resend")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponse.error(e.getMessage()));
+            }
+            
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Failed to send password reset code. Please try again later."));
+                    .body(ApiResponse.error("Failed to send password reset email. Please try again later."));
         }
     }
 
@@ -351,33 +360,34 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request) {
         
-        // Find user by email
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElse(null);
-        
-        if (user == null) {
+        try {
+            // Verify activation token
+            ActivationTokenService.ActivationTokenData tokenData = 
+                activationTokenService.verifyActivationToken(request.getCode()); // Using code field for token
+
+            // Verify this is a password reset token
+            if (!"password_reset".equals(tokenData.getAction())) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("Invalid token type"));
+            }
+
+            User user = tokenData.getUser();
+
+            // Update user's password
+            user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+            userRepository.save(user);
+
+            // Revoke all existing refresh tokens for security
+            refreshTokenService.deleteByUserId(user.getId());
+
+            log.info("Password reset successfully via activation token for user: {}", user.getEmail());
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("Password reset successfully", null));
+        } catch (Exception e) {
+            log.error("Password reset failed: {}", e.getMessage());
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Invalid email or verification code"));
+                    .body(ApiResponse.error("Invalid or expired reset token"));
         }
-
-        // Verify the code with microservice
-        boolean isValidCode = emailVerificationService.verifyCode(request.getEmail(), request.getCode());
-
-        if (!isValidCode) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Invalid or expired verification code"));
-        }
-
-        // Update user's password
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
-
-        // Revoke all existing refresh tokens for security
-        refreshTokenService.deleteByUserId(user.getId());
-
-        log.info("Password reset successfully for user: {}", user.getEmail());
-        return ResponseEntity.ok(
-                ApiResponse.<Void>success("Password reset successfully", null));
     }
 
     private void setRefreshTokenCookie(HttpServletResponse response, Long userId, String deviceId) {
@@ -393,4 +403,332 @@ public class AuthController {
         
         log.info("Set refresh token cookie for user: {}, device: {}", userId, deviceId);
     }
-} 
+
+    // ===== NEW ACTIVATION ENDPOINTS =====
+
+    @GetMapping("/activate/{token}")
+    public ResponseEntity<ApiResponse<Void>> activateAccount(@PathVariable String token) {
+        
+        try {
+            // Verify activation token
+            ActivationTokenService.ActivationTokenData tokenData = 
+                activationTokenService.verifyActivationToken(token);
+
+            User user = tokenData.getUser();
+
+            // Handle different actions
+            if ("registration".equals(tokenData.getAction())) {
+                // Registration activation
+                if (user.getStatus() == com.fix4home.fix4home.model.enums.UserStatus.PENDING_EMAIL_VERIFICATION) {
+                    if (user.getRole() == com.fix4home.fix4home.model.enums.Role.TECHNICIAN) {
+                        // Technician needs admin approval after email verification
+                        user.setStatus(com.fix4home.fix4home.model.enums.UserStatus.PENDING_APPROVAL);
+                        log.info("Email verified for technician via activation link, status set to PENDING_APPROVAL: {}", user.getEmail());
+                    } else {
+                        // Customer and other roles are activated immediately after email verification
+                        user.setStatus(com.fix4home.fix4home.model.enums.UserStatus.ACTIVE);
+                        log.info("Email verified and user activated via activation link: {}", user.getEmail());
+                    }
+                }
+                userRepository.save(user);
+                return ResponseEntity.ok(
+                        ApiResponse.<Void>success("Account activated successfully", null));
+                        
+            } else if ("password_reset".equals(tokenData.getAction())) {
+                // Password reset activation - temp password already applied by service
+                if (tokenData.isTempPasswordApplied()) {
+                    // Save user with new temp password and must change flag
+                    userRepository.save(user);
+                    
+                    log.info("Temporary password activated for user: {}", user.getEmail());
+                    return ResponseEntity.ok(
+                            ApiResponse.<Void>success("Temporary password activated. Please login and change your password.", null));
+                } else {
+                    return ResponseEntity.badRequest()
+                            .body(ApiResponse.error("Failed to activate temporary password"));
+                }
+            }
+
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("Activation completed successfully", null));
+        } catch (Exception e) {
+            log.error("Account activation failed: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Invalid or expired activation token"));
+        }
+    }
+
+    @PostMapping("/verify-activation-token")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyActivationToken(
+            @RequestBody Map<String, String> request) {
+        
+        String token = request.get("token");
+        if (token == null || token.trim().isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Token is required"));
+        }
+
+        // Verify activation token with microservice
+        EmailVerificationService.ActivationData activationData = emailVerificationService.verifyActivationToken(token);
+        
+        if (activationData == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Invalid or expired activation token"));
+        }
+
+        // Find user by email
+        User user = userRepository.findByEmail(activationData.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("User not found"));
+        }
+
+        // Process based on action type
+        if ("registration".equals(activationData.getAction())) {
+            if (user.getStatus() == com.fix4home.fix4home.model.enums.UserStatus.PENDING_EMAIL_VERIFICATION) {
+                if (user.getRole() == com.fix4home.fix4home.model.enums.Role.TECHNICIAN) {
+                    user.setStatus(com.fix4home.fix4home.model.enums.UserStatus.PENDING_APPROVAL);
+                    log.info("Email verified for technician via token, status set to PENDING_APPROVAL: {}", user.getEmail());
+                } else {
+                    user.setStatus(com.fix4home.fix4home.model.enums.UserStatus.ACTIVE);
+                    log.info("Email verified and user activated via token: {}", user.getEmail());
+                }
+                userRepository.save(user);
+            }
+        }
+
+        // Return activation data
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("email", activationData.getEmail());
+        responseData.put("action", activationData.getAction());
+        responseData.put("userId", user.getId());
+        responseData.put("userStatus", user.getStatus());
+
+        return ResponseEntity.ok(
+                ApiResponse.success("Token verified successfully", responseData));
+    }
+
+    @PostMapping("/send-activation-link")
+    public ResponseEntity<ApiResponse<EmailVerificationService.ActivationResponse>> sendActivationLink(
+            @Valid @RequestBody SendVerificationCodeRequest request) {
+        
+        // Check if user exists with this email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            // For security, we don't reveal if email exists or not
+            EmailVerificationService.ActivationResponse response = EmailVerificationService.ActivationResponse.builder()
+                .success(true)
+                .message("If the email exists, an activation link has been sent")
+                .build();
+            return ResponseEntity.ok(ApiResponse.success("Activation link sent", response));
+        }
+
+        // Send activation link
+        EmailVerificationService.ActivationResponse response = emailVerificationService.sendActivationLink(
+                request.getEmail(), 
+                "registration", 
+                user.getId()
+        );
+
+        if (response.isSuccess()) {
+            log.info("Activation link sent to email: {}", request.getEmail());
+            return ResponseEntity.ok(
+                    ApiResponse.success("Activation link sent successfully", response));
+        } else {
+            // Check if it's a rate limit error
+            if (response.getMessage().contains("60 giây") || response.getMessage().contains("giới hạn")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponse.error("Rate limit exceeded", response));
+            }
+            
+            log.error("Failed to send activation link to email: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to send activation link", response));
+        }
+    }
+
+    @PostMapping("/resend-activation-link")
+    public ResponseEntity<ApiResponse<EmailVerificationService.ActivationResponse>> resendActivationLink(
+            @Valid @RequestBody SendVerificationCodeRequest request) {
+        
+        // Check if user exists with this email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("User not found"));
+        }
+
+        // Resend activation link
+        EmailVerificationService.ActivationResponse response = emailVerificationService.resendActivationLink(
+                request.getEmail(), 
+                "registration"
+        );
+
+        if (response.isSuccess()) {
+            log.info("Activation link resent to email: {}", request.getEmail());
+            return ResponseEntity.ok(
+                    ApiResponse.success("Activation link resent successfully", response));
+        } else {
+            // Check if it's a rate limit error
+            if (response.getMessage().contains("60 giây") || response.getMessage().contains("giới hạn")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponse.error("Rate limit exceeded", response));
+            }
+            
+            log.error("Failed to resend activation link to email: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to resend activation link", response));
+        }
+    }
+
+    @PostMapping("/send-password-reset-link")
+    public ResponseEntity<ApiResponse<EmailVerificationService.ActivationResponse>> sendPasswordResetLink(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        
+        // Check if user exists with this email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            // For security, we don't reveal if email exists or not
+            EmailVerificationService.ActivationResponse response = EmailVerificationService.ActivationResponse.builder()
+                .success(true)
+                .message("If the email exists, a password reset link has been sent")
+                .build();
+            return ResponseEntity.ok(ApiResponse.success("Password reset link sent", response));
+        }
+
+        // Send password reset link
+        EmailVerificationService.ActivationResponse response = emailVerificationService.sendActivationLink(
+                request.getEmail(), 
+                "password_reset", 
+                user.getId()
+        );
+
+        if (response.isSuccess()) {
+            log.info("Password reset link sent to email: {}", request.getEmail());
+            return ResponseEntity.ok(
+                    ApiResponse.success("Password reset link sent successfully", response));
+        } else {
+            // Check if it's a rate limit error
+            if (response.getMessage().contains("60 giây") || response.getMessage().contains("giới hạn")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponse.error("Rate limit exceeded", response));
+            }
+            
+            log.error("Failed to send password reset link to email: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to send password reset link", response));
+        }
+    }
+
+    @PostMapping("/reset-password-with-token")
+    public ResponseEntity<ApiResponse<Void>> resetPasswordWithToken(
+            @RequestBody Map<String, String> request) {
+        
+        String token = request.get("token");
+        String newPassword = request.get("newPassword");
+        
+        if (token == null || token.trim().isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Token is required"));
+        }
+        
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("New password is required"));
+        }
+
+        // Verify activation token with microservice
+        EmailVerificationService.ActivationData activationData = emailVerificationService.verifyActivationToken(token);
+        
+        if (activationData == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Invalid or expired reset token"));
+        }
+
+        // Verify this is a password reset token
+        if (!"password_reset".equals(activationData.getAction())) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Invalid token type"));
+        }
+
+        // Find user by email
+        User user = userRepository.findByEmail(activationData.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("User not found"));
+        }
+
+        // Update user's password
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        // Revoke all existing refresh tokens for security
+        refreshTokenService.deleteByUserId(user.getId());
+
+        log.info("Password reset successfully via token for user: {}", user.getEmail());
+            return ResponseEntity.ok(
+                    ApiResponse.<Void>success("Password reset successfully", null));
+    }
+
+    // ===== TOKEN STATUS ENDPOINTS =====
+
+    @GetMapping("/check-token/{token}")
+    public ResponseEntity<ApiResponse<ActivationTokenService.ActivationTokenInfo>> checkTokenStatus(
+            @PathVariable String token) {
+        
+        Optional<ActivationTokenService.ActivationTokenInfo> tokenInfo = 
+            activationTokenService.getTokenInfo(token);
+        
+        if (tokenInfo.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Token not found"));
+        }
+
+        return ResponseEntity.ok(
+                ApiResponse.success("Token information retrieved", tokenInfo.get()));
+    }
+
+    @PostMapping("/resend-password-reset")
+    public ResponseEntity<ApiResponse<ActivationTokenService.ActivationTokenResponse>> resendPasswordReset(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        
+        // Check if user exists with this email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElse(null);
+        
+        if (user == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("User not found"));
+        }
+
+        try {
+            // Resend password reset token
+            ActivationTokenService.ActivationTokenResponse response = 
+                activationTokenService.resendActivationToken(request.getEmail(), "password_reset");
+
+            log.info("Password reset link resent to email: {}", request.getEmail());
+            return ResponseEntity.ok(
+                    ApiResponse.success("Password reset link resent successfully", response));
+        } catch (Exception e) {
+            log.error("Failed to resend password reset link to email: {}", request.getEmail(), e);
+            
+            if (e.getMessage().contains("60 seconds") || e.getMessage().contains("Maximum resend")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ApiResponse.error(e.getMessage()));
+            }
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to resend password reset link"));
+        }
+    }
+}

@@ -46,7 +46,7 @@ public class ChatEventListener extends BaseService {
             
             // Check if conversation already exists
             Optional<Conversation> existingConversation = conversationRepository
-                    .findByServiceRequestId(serviceRequest.getId());
+                    .findByServiceRequest_Id(serviceRequest.getId());
             
             if (existingConversation.isEmpty()) {
                 // Create new conversation
@@ -54,7 +54,7 @@ public class ChatEventListener extends BaseService {
                 
                 // Send initial system message
                 Conversation conversation = conversationRepository
-                        .findByServiceRequestId(serviceRequest.getId()).orElseThrow();
+                        .findByServiceRequest_Id(serviceRequest.getId()).orElseThrow();
                 
                 chatService.sendSystemMessage(
                     conversation.getId(),
@@ -80,7 +80,7 @@ public class ChatEventListener extends BaseService {
         
         try {
             Optional<Conversation> conversation = conversationRepository
-                    .findByServiceRequestId(event.getServiceRequestId());
+                    .findByServiceRequest_Id(event.getServiceRequestId());
             
             if (conversation.isPresent()) {
                 chatService.sendSystemMessage(
@@ -104,7 +104,7 @@ public class ChatEventListener extends BaseService {
         
         try {
             Optional<Conversation> conversation = conversationRepository
-                    .findByServiceRequestId(event.getServiceRequestId());
+                    .findByServiceRequest_Id(event.getServiceRequestId());
             
             if (conversation.isPresent()) {
                 // Send completion message
@@ -139,7 +139,7 @@ public class ChatEventListener extends BaseService {
             
             // Check if conversation already exists between these participants for this post
             Optional<Conversation> existingConversation = conversationRepository
-                    .findByServicePostId(servicePost.getId());
+                    .findByServicePost_Id(servicePost.getId());
             
             if (existingConversation.isEmpty()) {
                 // Create conversation
@@ -147,7 +147,7 @@ public class ChatEventListener extends BaseService {
                 
                 // Send initial system message
                 Conversation conversation = conversationRepository
-                        .findByServicePostId(servicePost.getId()).orElseThrow();
+                        .findByServicePost_Id(servicePost.getId()).orElseThrow();
                 
                 chatService.sendSystemMessage(
                     conversation.getId(),
@@ -174,7 +174,7 @@ public class ChatEventListener extends BaseService {
         
         try {
             Optional<Conversation> conversation = conversationRepository
-                    .findByServicePostId(event.getServicePostId());
+                    .findByServicePost_Id(event.getServicePostId());
             
             if (conversation.isPresent()) {
                 chatService.sendSystemMessage(
@@ -203,7 +203,7 @@ public class ChatEventListener extends BaseService {
             
             // Check if conversation already exists
             Optional<Conversation> existingConversation = conversationRepository
-                    .findByConsultationId(consultation.getId());
+                    .findByConsultation_Id(consultation.getId());
             
             if (existingConversation.isEmpty()) {
                 // Create conversation
@@ -211,7 +211,7 @@ public class ChatEventListener extends BaseService {
                 
                 // Send initial system message
                 Conversation conversation = conversationRepository
-                        .findByConsultationId(consultation.getId()).orElseThrow();
+                        .findByConsultation_Id(consultation.getId()).orElseThrow();
                 
                 chatService.sendSystemMessage(
                     conversation.getId(),
@@ -237,7 +237,7 @@ public class ChatEventListener extends BaseService {
         
         try {
             Optional<Conversation> conversation = conversationRepository
-                    .findByConsultationId(event.getConsultationId());
+                    .findByConsultation_Id(event.getConsultationId());
             
             if (conversation.isPresent()) {
                 chatService.sendSystemMessage(
@@ -266,7 +266,7 @@ public class ChatEventListener extends BaseService {
             ServiceRequest serviceRequest = complaint.getServiceRequest();
             
             Optional<Conversation> conversation = conversationRepository
-                    .findByServiceRequestId(serviceRequest.getId());
+                    .findByServiceRequest_Id(serviceRequest.getId());
             
             if (conversation.isPresent()) {
                 chatService.sendSystemMessage(

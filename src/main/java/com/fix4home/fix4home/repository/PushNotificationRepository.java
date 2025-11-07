@@ -60,7 +60,7 @@ public interface PushNotificationRepository extends JpaRepository<PushNotificati
     
     // Get notification statistics by type
     @Query("SELECT pn.type, COUNT(pn), AVG(CASE WHEN pn.sentAt IS NOT NULL THEN " +
-           "EXTRACT(EPOCH FROM (pn.sentAt - pn.createdAt)) ELSE NULL END) " +
+           "TIMESTAMPDIFF(SECOND, pn.createdAt, pn.sentAt) ELSE NULL END) " +
            "FROM PushNotification pn WHERE pn.createdAt >= :since " +
            "GROUP BY pn.type")
     List<Object[]> getNotificationStatisticsByType(@Param("since") LocalDateTime since);

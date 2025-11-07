@@ -12,7 +12,7 @@
     <!-- File Appender -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/fix4home.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <fileNamePattern>logs/fix4home.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
             <maxFileSize>100MB</maxFileSize>
             <maxHistory>30</maxHistory>
@@ -31,7 +31,7 @@
             <onMatch>ACCEPT</onMatch>
             <onMismatch>DENY</onMismatch>
         </filter>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <fileNamePattern>logs/fix4home-error.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
             <maxFileSize>100MB</maxFileSize>
             <maxHistory>90</maxHistory>
@@ -81,9 +81,6 @@
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ASYNC_FILE"/>
         <appender-ref ref="ASYNC_ERROR_FILE"/>
-        <springProfile name="production">
-            <appender-ref ref="SENTRY"/>
-        </springProfile>
     </logger>
     
     <!-- Security Loggers -->
@@ -125,11 +122,16 @@
     </springProfile>
     
     <springProfile name="production">
-        <root level="INFO">
+        <logger name="com.fix4home" level="INFO" additivity="false">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="ASYNC_FILE"/>
             <appender-ref ref="ASYNC_ERROR_FILE"/>
             <appender-ref ref="SENTRY"/>
+        </logger>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+            <appender-ref ref="ASYNC_ERROR_FILE"/>
         </root>
     </springProfile>
     

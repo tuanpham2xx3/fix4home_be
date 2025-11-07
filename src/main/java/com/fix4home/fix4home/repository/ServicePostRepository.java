@@ -61,7 +61,7 @@ public interface ServicePostRepository extends JpaRepository<ServicePost, Long> 
     
     // Find posts by location (address)
     @Query("SELECT sp FROM ServicePost sp WHERE " +
-           "LOWER(sp.address.address) LIKE LOWER(CONCAT('%', :location, '%')) " +
+           "LOWER(sp.address.addressLine) LIKE LOWER(CONCAT('%', :location, '%')) " +
            "AND sp.status IN :statuses " +
            "ORDER BY sp.createdAt DESC")
     List<ServicePost> findPostsByLocation(@Param("location") String location, @Param("statuses") List<ServicePostStatus> statuses);
@@ -124,7 +124,7 @@ public interface ServicePostRepository extends JpaRepository<ServicePost, Long> 
            "     LOWER(sp.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "     LOWER(s.name) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:location IS NULL OR :location = '' OR " +
-           "     LOWER(sp.address.address) LIKE LOWER(CONCAT('%', :location, '%'))) " +
+           "     LOWER(sp.address.addressLine) LIKE LOWER(CONCAT('%', :location, '%'))) " +
            "AND (:type IS NULL OR sp.type = :type) " +
            "AND (:minBudget IS NULL OR sp.estimatedBudget >= :minBudget) " +
            "AND (:maxBudget IS NULL OR sp.estimatedBudget <= :maxBudget) " +
@@ -154,7 +154,7 @@ public interface ServicePostRepository extends JpaRepository<ServicePost, Long> 
            "     LOWER(sp.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "     LOWER(s.name) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:location IS NULL OR :location = '' OR " +
-           "     LOWER(sp.address.address) LIKE LOWER(CONCAT('%', :location, '%'))) " +
+           "     LOWER(sp.address.addressLine) LIKE LOWER(CONCAT('%', :location, '%'))) " +
            "AND (:type IS NULL OR sp.type = :type) " +
            "AND (:minBudget IS NULL OR sp.estimatedBudget >= :minBudget) " +
            "AND (:maxBudget IS NULL OR sp.estimatedBudget <= :maxBudget) " +

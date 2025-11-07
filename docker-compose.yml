@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MySQL Database
   mysql:
@@ -68,6 +66,9 @@ services:
       
       # Email Service
       EMAIL_VERIFICATION_API_KEY: ${EMAIL_VERIFICATION_API_KEY:-fix4home_prod_123abc456def789}
+      
+      # SSL Configuration (disabled for local development)
+      SSL_ENABLED: ${SSL_ENABLED:-false}
       
       # Monitoring
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,metrics,prometheus,info

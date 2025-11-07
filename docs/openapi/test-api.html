@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix4Home API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e1e8ed;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e1e8ed;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .response-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .token-display {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border: 1px solid #ffeaa7;
+        }
+
+        .token-display strong {
+            color: #856404;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .endpoint-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .get { background: #61affe; color: white; }
+        .post { background: #49cc90; color: white; }
+        .put { background: #fca130; color: white; }
+        .delete { background: #f93e3e; color: white; }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e1e8ed;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: #666;
+            font-weight: 600;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            color: #667eea;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 Fix4Home API Tester</h1>
+            <p>Test API endpoints directly from your browser</p>
+        </div>
+
+        <div class="info-box">
+            <strong>💡 Quick Start:</strong>
+            <ol style="margin-left: 20px; margin-top: 10px;">
+                <li>Register a new account or login with existing credentials</li>
+                <li>Your JWT token will be automatically stored and used for subsequent requests</li>
+                <li>Try different endpoints to test the API functionality</li>
+            </ol>
+        </div>
+
+        <!-- API Configuration -->
+        <div class="card">
+            <h2>⚙️ Configuration</h2>
+            <div class="form-group">
+                <label>API Base URL</label>
+                <input type="text" id="baseUrl" value="http://localhost:8100/api/v1">
+            </div>
+            <div class="token-display" id="tokenDisplay" style="display: none;">
+                <strong>🔑 Current Token:</strong>
+                <div style="margin-top: 5px; word-break: break-all;" id="tokenValue"></div>
+                <button onclick="clearToken()" style="margin-top: 10px; background: #dc3545;">Clear Token</button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="card">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('auth')">🔐 Authentication</button>
+                <button class="tab" onclick="switchTab('services')">🛠️ Services</button>
+                <button class="tab" onclick="switchTab('requests')">📋 Service Requests</button>
+                <button class="tab" onclick="switchTab('profile')">👤 Profile</button>
+            </div>
+
+            <!-- Authentication Tab -->
+            <div id="auth" class="tab-content active">
+                <h2>Register New User</h2>
+                <span class="endpoint-badge post">POST /auth/register</span>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="registerEmail" placeholder="customer@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="registerPassword" placeholder="password123">
+                </div>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="registerFullName" placeholder="John Doe">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="text" id="registerPhone" placeholder="0123456789">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select id="registerRole">
+                        <option value="CUSTOMER">Customer</option>
+                        <option value="TECHNICIAN">Technician</option>
+                    </select>
+                </div>
+                <button onclick="register()">Register</button>
+
+                <hr style="margin: 30px 0;">
+
+                <h2>Login</h2>
+                <span class="endpoint-badge post">POST /auth/login</span>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" placeholder="customer@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" placeholder="password123">
+                </div>
+                <button onclick="login()">Login</button>
+
+                <div id="authResponse"></div>
+            </div>
+
+            <!-- Services Tab -->
+            <div id="services" class="tab-content">
+                <h2>Get All Services</h2>
+                <span class="endpoint-badge get">GET /services</span>
+                <button onclick="getServices()">Get Services</button>
+
+                <hr style="margin: 30px 0;">
+
+                <h2>Create Service (Admin Only)</h2>
+                <span class="endpoint-badge post">POST /services</span>
+                <div class="form-group">
+                    <label>Service Name</label>
+                    <input type="text" id="serviceName" placeholder="Plumbing Service">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="serviceDescription" placeholder="Professional plumbing services"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Base Price (VND)</label>
+                    <input type="number" id="servicePrice" placeholder="200000">
+                </div>
+                <button onclick="createService()">Create Service</button>
+
+                <div id="servicesResponse"></div>
+            </div>
+
+            <!-- Service Requests Tab -->
+            <div id="requests" class="tab-content">
+                <h2>Get My Service Requests</h2>
+                <span class="endpoint-badge get">GET /service-requests</span>
+                <button onclick="getServiceRequests()">Get My Requests</button>
+
+                <hr style="margin: 30px 0;">
+
+                <h2>Create Service Request</h2>
+                <span class="endpoint-badge post">POST /service-requests</span>
+                <div class="form-group">
+                    <label>Service ID</label>
+                    <input type="number" id="requestServiceId" placeholder="1">
+                </div>
+                <div class="form-group">
+                    <label>Address ID</label>
+                    <input type="number" id="requestAddressId" placeholder="1">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="requestDescription" placeholder="Leaking pipe in bathroom"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Scheduled Time (Optional)</label>
+                    <input type="datetime-local" id="requestScheduledTime">
+                </div>
+                <button onclick="createServiceRequest()">Create Request</button>
+
+                <div id="requestsResponse"></div>
+            </div>
+
+            <!-- Profile Tab -->
+            <div id="profile" class="tab-content">
+                <h2>Get Customer Profile</h2>
+                <span class="endpoint-badge get">GET /customers/profile</span>
+                <button onclick="getProfile()">Get Profile</button>
+
+                <hr style="margin: 30px 0;">
+
+                <h2>Get My Addresses</h2>
+                <span class="endpoint-badge get">GET /customers/addresses</span>
+                <button onclick="getAddresses()">Get Addresses</button>
+
+                <hr style="margin: 30px 0;">
+
+                <h2>Add New Address</h2>
+                <span class="endpoint-badge post">POST /customers/addresses</span>
+                <div class="form-group">
+                    <label>Recipient Name</label>
+                    <input type="text" id="addressRecipientName" placeholder="John Doe">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="text" id="addressPhone" placeholder="0123456789">
+                </div>
+                <div class="form-group">
+                    <label>Address Line</label>
+                    <input type="text" id="addressLine" placeholder="123 Main Street">
+                </div>
+                <div class="form-group">
+                    <label>City</label>
+                    <input type="text" id="addressCity" placeholder="Ho Chi Minh City">
+                </div>
+                <button onclick="addAddress()">Add Address</button>
+
+                <div id="profileResponse"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const getBaseUrl = () => document.getElementById('baseUrl').value;
+        let authToken = localStorage.getItem('authToken') || '';
+
+        // Display token if exists
+        if (authToken) {
+            displayToken(authToken);
+        }
+
+        function displayToken(token) {
+            authToken = token;
+            localStorage.setItem('authToken', token);
+            document.getElementById('tokenDisplay').style.display = 'block';
+            document.getElementById('tokenValue').textContent = token.substring(0, 50) + '...';
+        }
+
+        function clearToken() {
+            authToken = '';
+            localStorage.removeItem('authToken');
+            document.getElementById('tokenDisplay').style.display = 'none';
+            showResponse('authResponse', { success: true, message: 'Token cleared' }, 'success');
+        }
+
+        function switchTab(tabName) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        async function apiCall(method, endpoint, body = null, needsAuth = true) {
+            const url = getBaseUrl() + endpoint;
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+
+            if (needsAuth && authToken) {
+                headers['Authorization'] = `Bearer ${authToken}`;
+            }
+
+            const options = {
+                method,
+                headers,
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw { response: data, status: response.status };
+                }
+
+                return data;
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        function showResponse(elementId, data, type = 'response') {
+            const element = document.getElementById(elementId);
+            
+            if (type === 'success') {
+                element.innerHTML = `<div class="success">${data.message || 'Success!'}</div>`;
+            } else if (type === 'error') {
+                element.innerHTML = `<div class="error">${data.message || 'Error occurred'}</div>`;
+            }
+
+            element.innerHTML += `<div class="response-box">${JSON.stringify(data, null, 2)}</div>`;
+        }
+
+        // Authentication
+        async function register() {
+            try {
+                const data = await apiCall('POST', '/auth/register', {
+                    email: document.getElementById('registerEmail').value,
+                    password: document.getElementById('registerPassword').value,
+                    fullName: document.getElementById('registerFullName').value,
+                    phone: document.getElementById('registerPhone').value,
+                    role: document.getElementById('registerRole').value,
+                }, false);
+
+                showResponse('authResponse', data, 'success');
+            } catch (error) {
+                showResponse('authResponse', error.response || error, 'error');
+            }
+        }
+
+        async function login() {
+            try {
+                const data = await apiCall('POST', '/auth/login', {
+                    email: document.getElementById('loginEmail').value,
+                    password: document.getElementById('loginPassword').value,
+                }, false);
+
+                if (data.data && data.data.token) {
+                    displayToken(data.data.token);
+                }
+
+                showResponse('authResponse', data, 'success');
+            } catch (error) {
+                showResponse('authResponse', error.response || error, 'error');
+            }
+        }
+
+        // Services
+        async function getServices() {
+            try {
+                const data = await apiCall('GET', '/services', null, false);
+                showResponse('servicesResponse', data, 'success');
+            } catch (error) {
+                showResponse('servicesResponse', error.response || error, 'error');
+            }
+        }
+
+        async function createService() {
+            try {
+                const data = await apiCall('POST', '/services', {
+                    name: document.getElementById('serviceName').value,
+                    description: document.getElementById('serviceDescription').value,
+                    basePrice: parseFloat(document.getElementById('servicePrice').value),
+                });
+
+                showResponse('servicesResponse', data, 'success');
+            } catch (error) {
+                showResponse('servicesResponse', error.response || error, 'error');
+            }
+        }
+
+        // Service Requests
+        async function getServiceRequests() {
+            try {
+                const data = await apiCall('GET', '/service-requests');
+                showResponse('requestsResponse', data, 'success');
+            } catch (error) {
+                showResponse('requestsResponse', error.response || error, 'error');
+            }
+        }
+
+        async function createServiceRequest() {
+            try {
+                const requestData = {
+                    serviceId: parseInt(document.getElementById('requestServiceId').value),
+                    addressId: parseInt(document.getElementById('requestAddressId').value),
+                    description: document.getElementById('requestDescription').value,
+                };
+
+                const scheduledTime = document.getElementById('requestScheduledTime').value;
+                if (scheduledTime) {
+                    requestData.scheduledTime = new Date(scheduledTime).toISOString();
+                }
+
+                const data = await apiCall('POST', '/service-requests', requestData);
+                showResponse('requestsResponse', data, 'success');
+            } catch (error) {
+                showResponse('requestsResponse', error.response || error, 'error');
+            }
+        }
+
+        // Profile
+        async function getProfile() {
+            try {
+                const data = await apiCall('GET', '/customers/profile');
+                showResponse('profileResponse', data, 'success');
+            } catch (error) {
+                showResponse('profileResponse', error.response || error, 'error');
+            }
+        }
+
+        async function getAddresses() {
+            try {
+                const data = await apiCall('GET', '/customers/addresses');
+                showResponse('profileResponse', data, 'success');
+            } catch (error) {
+                showResponse('profileResponse', error.response || error, 'error');
+            }
+        }
+
+        async function addAddress() {
+            try {
+                const data = await apiCall('POST', '/customers/addresses', {
+                    recipientName: document.getElementById('addressRecipientName').value,
+                    recipientPhone: document.getElementById('addressPhone').value,
+                    addressLine: document.getElementById('addressLine').value,
+                    city: document.getElementById('addressCity').value,
+                });
+
+                showResponse('profileResponse', data, 'success');
+            } catch (error) {
+                showResponse('profileResponse', error.response || error, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
+

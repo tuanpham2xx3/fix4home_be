@@ -50,6 +50,10 @@ public class User {
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
     
+    @Column(name = "must_change_password", nullable = false)
+    @Builder.Default
+    private Boolean mustChangePassword = false; // Flag to force password change after temp password
+    
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

@@ -39,6 +39,7 @@ public class AuthService extends BaseService {
     private final JwtTokenProvider tokenProvider;
     private final AuthenticationManager authenticationManager;
     private final EmailVerificationService emailVerificationService;
+    private final ActivationTokenService activationTokenService;
 
     @Value("${admin.registration.key}")
     private String adminRegistrationKey;
@@ -93,15 +94,12 @@ public class AuthService extends BaseService {
         // Create profile based on role
         createUserProfile(savedUser, request);
 
-        // Send email verification code for non-admin users
+        // Send email verification for non-admin users
         if (savedUser.getStatus() == UserStatus.PENDING_EMAIL_VERIFICATION) {
             try {
-                boolean emailSent = emailVerificationService.sendVerificationCode(
-                        savedUser.getEmail(), 
-                        "registration", 
-                        savedUser.getId()
-                );
-                if (!emailSent) {
+                ActivationTokenService.ActivationTokenResponse response = 
+                    activationTokenService.generateActivationToken(savedUser, "registration");
+                if (!response.isSuccess()) {
                     log.warn("Failed to send verification email to: {}", savedUser.getEmail());
                 }
             } catch (Exception e) {
