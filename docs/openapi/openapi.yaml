@@ -24,6 +24,23 @@ info:
     Authorization: Bearer <your-jwt-token>
     ```
     
+    ### Mobile vs Web Client Detection
+    The API automatically detects client type based on the `X-Device-Id` header:
+    - **Mobile clients**: Include `X-Device-Id` header → Receive refresh token in response body
+    - **Web clients**: Omit `X-Device-Id` header → Receive refresh token in HTTP-only cookie (if deviceId provided)
+    
+    **Mobile Authentication Flow:**
+    1. Login/Register with `X-Device-Id` header
+    2. Receive `accessToken` and `refreshToken` in response body
+    3. Store `refreshToken` securely (Flutter Secure Storage)
+    4. Use `refreshToken` in `X-Refresh-Token` header or request body to refresh access token
+    
+    **Web Authentication Flow:**
+    1. Login/Register (with or without `X-Device-Id` header)
+    2. Receive `accessToken` in response body
+    3. Refresh token stored in HTTP-only cookie (if deviceId provided)
+    4. Use cookie automatically for refresh token endpoint
+    
     ## Password Reset Flow
     The system uses a temporary password approach for password reset:
     
@@ -161,7 +178,7 @@ components:
 
     UserStatus:
       type: string
-      enum: [ACTIVE, INACTIVE, PENDING_APPROVAL, REJECTED]
+      enum: [ACTIVE, INACTIVE, PENDING_APPROVAL, PENDING_EMAIL_VERIFICATION, REJECTED]
       example: ACTIVE
 
     Gender:
@@ -210,17 +227,101 @@ components:
           format: password
           example: password123
 
-    LoginResponse:
+    AuthResponse:
       type: object
+      description: Authentication response containing access token and optional refresh token (for mobile clients)
       properties:
-        token:
+        accessToken:
           type: string
+          description: JWT access token
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        type:
+        tokenType:
           type: string
+          description: Token type (always "Bearer")
           example: Bearer
-        user:
-          $ref: '#/components/schemas/User'
+          default: Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          description: Token expiration time in seconds
+          example: 900
+        refreshToken:
+          type: string
+          description: Refresh token (only present for mobile clients with X-Device-Id header)
+          example: uuid-refresh-token-here
+          nullable: true
+        userId:
+          type: integer
+          format: int64
+          description: User ID
+          example: 1
+        username:
+          type: string
+          description: Username
+          example: john_doe
+        email:
+          type: string
+          format: email
+          description: User email
+          example: customer@example.com
+        phoneNumber:
+          type: string
+          description: User phone number
+          example: "0123456789"
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        createdAt:
+          type: string
+          format: date-time
+          description: User creation date
+          example: "2024-11-03T10:30:00Z"
+        fullName:
+          type: string
+          description: User full name (from profile)
+          example: John Doe
+          nullable: true
+        skills:
+          type: string
+          description: Technician skills (only for TECHNICIAN role)
+          example: Plumbing, Electrical
+          nullable: true
+        experience:
+          type: string
+          description: Technician experience (only for TECHNICIAN role)
+          example: 5 years
+          nullable: true
+        rating:
+          type: number
+          format: float
+          description: Technician rating (only for TECHNICIAN role)
+          example: 4.5
+          nullable: true
+
+    RefreshTokenResponse:
+      type: object
+      description: Response from refresh token endpoint
+      properties:
+        accessToken:
+          type: string
+          description: New JWT access token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        tokenType:
+          type: string
+          description: Token type (always "Bearer")
+          example: Bearer
+          default: Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          description: Token expiration time in seconds
+          example: 900
+        userId:
+          type: integer
+          format: int64
+          description: User ID
+          example: 1
 
     ForgotPasswordRequest:
       type: object
@@ -1152,9 +1253,27 @@ paths:
       tags:
         - Authentication
       summary: Register new user
-      description: Register a new user account (Customer, Technician, or Admin)
+      description: |
+        Register a new user account (Customer, Technician, or Admin).
+        
+        **Client Type Detection:**
+        - **Mobile clients**: Include `X-Device-Id` header → Receive `refreshToken` in response body
+        - **Web clients**: Omit `X-Device-Id` header → No refresh token (deviceId required for refresh token creation)
+        
+        **Note**: Refresh token creation requires `X-Device-Id` header. Web clients that need refresh token should provide this header.
       operationId: register
       security: []
+      parameters:
+        - name: X-Device-Id
+          in: header
+          required: false
+          description: |
+            Device identifier for mobile clients. 
+            - If provided: Mobile client → refresh token returned in response body
+            - If omitted: Web client → no refresh token (backward compatible)
+          schema:
+            type: string
+            example: abc123-def456-ghi789
       requestBody:
         required: true
         content:
@@ -1179,7 +1298,7 @@ paths:
                   fullName: Tech Smith
                   phone: "0987654321"
       responses:
-        '201':
+        '200':
           description: User registered successfully
           content:
             application/json:
@@ -1189,7 +1308,41 @@ paths:
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/User'
+                        $ref: '#/components/schemas/AuthResponse'
+              examples:
+                mobile_client:
+                  summary: Mobile Client Response (with X-Device-Id header)
+                  value:
+                    success: true
+                    message: User registered successfully
+                    data:
+                      accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      tokenType: Bearer
+                      expiresIn: 900
+                      refreshToken: uuid-refresh-token-here
+                      userId: 1
+                      username: john_doe
+                      email: customer@example.com
+                      phoneNumber: "0123456789"
+                      role: CUSTOMER
+                      status: PENDING_EMAIL_VERIFICATION
+                      fullName: John Doe
+                web_client:
+                  summary: Web Client Response (without X-Device-Id header)
+                  value:
+                    success: true
+                    message: User registered successfully
+                    data:
+                      accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      tokenType: Bearer
+                      expiresIn: 900
+                      userId: 1
+                      username: john_doe
+                      email: customer@example.com
+                      phoneNumber: "0123456789"
+                      role: CUSTOMER
+                      status: PENDING_EMAIL_VERIFICATION
+                      fullName: John Doe
         '400':
           description: Invalid request data
           content:
@@ -1208,15 +1361,44 @@ paths:
       tags:
         - Authentication
       summary: User login
-      description: Authenticate user and receive JWT token
+      description: |
+        Authenticate user and receive JWT access token.
+        
+        **Client Type Detection:**
+        - **Mobile clients**: Include `X-Device-Id` header → Receive `refreshToken` in response body
+        - **Web clients**: Omit `X-Device-Id` header → No refresh token (deviceId required for refresh token creation)
+        
+        **Note**: Refresh token creation requires `X-Device-Id` header. Web clients that need refresh token should provide this header.
       operationId: login
       security: []
+      parameters:
+        - name: X-Device-Id
+          in: header
+          required: false
+          description: |
+            Device identifier for mobile clients. 
+            - If provided: Mobile client → refresh token returned in response body
+            - If omitted: Web client → no refresh token (backward compatible)
+          schema:
+            type: string
+            example: abc123-def456-ghi789
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/LoginRequest'
+            examples:
+              mobile_client:
+                summary: Mobile Client Request (with X-Device-Id header)
+                value:
+                  email: customer@example.com
+                  password: password123
+              web_client:
+                summary: Web Client Request (without X-Device-Id header)
+                value:
+                  email: customer@example.com
+                  password: password123
       responses:
         '200':
           description: Login successful
@@ -1228,7 +1410,41 @@ paths:
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/LoginResponse'
+                        $ref: '#/components/schemas/AuthResponse'
+              examples:
+                mobile_client:
+                  summary: Mobile Client Response (with X-Device-Id header)
+                  value:
+                    success: true
+                    message: Login successful
+                    data:
+                      accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      tokenType: Bearer
+                      expiresIn: 900
+                      refreshToken: uuid-refresh-token-here
+                      userId: 1
+                      username: john_doe
+                      email: customer@example.com
+                      phoneNumber: "0123456789"
+                      role: CUSTOMER
+                      status: ACTIVE
+                      fullName: John Doe
+                web_client:
+                  summary: Web Client Response (without X-Device-Id header)
+                  value:
+                    success: true
+                    message: Login successful
+                    data:
+                      accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      tokenType: Bearer
+                      expiresIn: 900
+                      userId: 1
+                      username: john_doe
+                      email: customer@example.com
+                      phoneNumber: "0123456789"
+                      role: CUSTOMER
+                      status: ACTIVE
+                      fullName: John Doe
         '401':
           description: Invalid credentials
           content:
@@ -1236,13 +1452,146 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: |
+        Refresh JWT access token using refresh token.
+        
+        **Token Source Priority:**
+        1. **Header** `X-Refresh-Token` (mobile clients - highest priority)
+        2. **Request Body** `{"refreshToken": "..."}` (mobile clients - fallback)
+        3. **Cookie** `refresh_token` (web clients - backward compatible)
+        
+        **Mobile Clients:**
+        - Send refresh token in `X-Refresh-Token` header or request body
+        - Receive new access token in response
+        
+        **Web Clients:**
+        - Refresh token automatically sent via HTTP-only cookie
+        - Receive new access token in response
+      operationId: refreshToken
+      security: []
+      parameters:
+        - name: X-Refresh-Token
+          in: header
+          required: false
+          description: Refresh token (for mobile clients - highest priority)
+          schema:
+            type: string
+            example: uuid-refresh-token-here
+        - name: X-Device-Id
+          in: header
+          required: false
+          description: Device identifier (optional, for tracking)
+          schema:
+            type: string
+            example: abc123-def456-ghi789
+      requestBody:
+        required: false
+        description: Refresh token in request body (for mobile clients - fallback if header not used)
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh token
+                  example: uuid-refresh-token-here
+            examples:
+              mobile_body:
+                summary: Mobile Client - Refresh Token in Body
+                value:
+                  refreshToken: uuid-refresh-token-here
+              mobile_header:
+                summary: Mobile Client - Refresh Token in Header (preferred)
+                value: {}
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RefreshTokenResponse'
+              examples:
+                success:
+                  summary: Successful Token Refresh
+                  value:
+                    success: true
+                    message: Token refreshed successfully
+                    data:
+                      accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      tokenType: Bearer
+                      expiresIn: 900
+                      userId: 1
+        '400':
+          description: Refresh token is required or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_token:
+                  summary: Missing Refresh Token
+                  value:
+                    success: false
+                    message: Refresh token is required
+                invalid_token:
+                  summary: Invalid Refresh Token
+                  value:
+                    success: false
+                    message: Invalid refresh token
+        '403':
+          description: Refresh token expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                expired:
+                  summary: Expired Refresh Token
+                  value:
+                    success: false
+                    message: Refresh token was expired
+        '429':
+          description: Too many refresh requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  summary: Rate Limit Exceeded
+                  value:
+                    success: false
+                    message: Too many refresh requests. Please try again later.
+
   /auth/logout:
     post:
       tags:
         - Authentication
       summary: User logout
-      description: Invalidate current JWT token
+      description: |
+        Logout user and invalidate refresh token for specific device.
+        
+        **Note**: Requires `X-Device-Id` header to identify the device to logout.
       operationId: logout
+      parameters:
+        - name: X-Device-Id
+          in: header
+          required: true
+          description: Device identifier to logout
+          schema:
+            type: string
+            example: abc123-def456-ghi789
       responses:
         '200':
           description: Logout successful
