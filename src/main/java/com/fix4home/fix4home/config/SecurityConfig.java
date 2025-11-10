@@ -180,7 +180,8 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(Arrays.asList(
             "Authorization",
             "Content-Type",
-            "X-Device-Id"
+            "X-Device-Id",
+            "X-Refresh-Token"
         ));
         
         // Allow credentials (cookies)

@@ -62,8 +62,32 @@ public class AuthController {
             HttpServletResponse response) {
         AuthResponse authResponse = authService.register(request);
         
-        // Create refresh token and set cookie
-        setRefreshTokenCookie(response, authResponse.getUserId(), deviceId);
+        // Auto-detect client type based on X-Device-Id header
+        // If deviceId is provided: Mobile client → return refresh token in body, no cookie
+        // If deviceId is not provided: Web client → set cookie (backward compatible)
+        boolean isMobileClient = deviceId != null && !deviceId.trim().isEmpty();
+        
+        if (isMobileClient) {
+            // Mobile client: Create refresh token and add to response body
+            try {
+                RefreshToken refreshToken = createRefreshTokenForUser(authResponse.getUserId(), deviceId);
+                authResponse.setRefreshToken(refreshToken.getToken());
+                log.info("Registration successful for mobile client - user: {}, device: {}", 
+                        authResponse.getUserId(), deviceId);
+            } catch (Exception e) {
+                log.error("Error creating refresh token for mobile client - user: {}, device: {}", 
+                        authResponse.getUserId(), deviceId, e);
+                // Still return success response with access token
+                return ResponseEntity.ok(
+                    ApiResponse.success("User registered successfully but failed to create refresh token", authResponse));
+            }
+        } else {
+            // Web client: No deviceId provided
+            // Note: Refresh token creation requires deviceId (enforced by RefreshTokenService)
+            // Web clients that need refresh token should provide X-Device-Id header
+            // This maintains backward compatibility - web clients without deviceId still get access token
+            log.info("Registration successful for web client (no deviceId) - user: {}", authResponse.getUserId());
+        }
         
         return ResponseEntity.ok(
                 ApiResponse.success("User registered successfully", authResponse));
@@ -77,16 +101,31 @@ public class AuthController {
             HttpServletResponse response) {
         AuthResponse authResponse = authService.login(request);
         
-        // Only set refresh token cookie if deviceId is provided
-        if (deviceId != null && !deviceId.trim().isEmpty()) {
+        // Auto-detect client type based on X-Device-Id header
+        // If deviceId is provided: Mobile client → return refresh token in body, no cookie
+        // If deviceId is not provided: Web client → set cookie (backward compatible)
+        boolean isMobileClient = deviceId != null && !deviceId.trim().isEmpty();
+        
+        if (isMobileClient) {
+            // Mobile client: Create refresh token and add to response body
             try {
-                setRefreshTokenCookie(response, authResponse.getUserId(), deviceId);
+                RefreshToken refreshToken = createRefreshTokenForUser(authResponse.getUserId(), deviceId);
+                authResponse.setRefreshToken(refreshToken.getToken());
+                log.info("Login successful for mobile client - user: {}, device: {}", 
+                        authResponse.getUserId(), deviceId);
             } catch (Exception e) {
-                log.error("Error creating refresh token", e);
+                log.error("Error creating refresh token for mobile client - user: {}, device: {}", 
+                        authResponse.getUserId(), deviceId, e);
                 // Still return success response with access token
                 return ResponseEntity.ok(
                     ApiResponse.success("Login successful but failed to create refresh token", authResponse));
             }
+        } else {
+            // Web client: No deviceId provided
+            // Note: Refresh token creation requires deviceId (enforced by RefreshTokenService)
+            // Web clients that need refresh token should provide X-Device-Id header
+            // This maintains backward compatibility - web clients without deviceId still get access token
+            log.info("Login successful for web client (no deviceId) - user: {}", authResponse.getUserId());
         }
         
         return ResponseEntity.ok(
@@ -95,7 +134,9 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshToken(
-            @CookieValue(name = "refresh_token", required = false) String refreshToken,
+            @CookieValue(name = "refresh_token", required = false) String refreshTokenCookie,
+            @RequestHeader(value = "X-Refresh-Token", required = false) String refreshTokenHeader,
+            @RequestBody(required = false) Map<String, String> requestBody,
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
             @RequestHeader(value = "X-Forwarded-For", required = false) String ipAddress,
             HttpServletResponse response) {
@@ -110,7 +151,21 @@ public class AuthController {
                     .body(ApiResponse.error("Too many refresh requests. Please try again later."));
         }
 
-        if (refreshToken == null) {
+        // Priority: Header > Body > Cookie (for backward compatibility with web clients)
+        String refreshToken = refreshTokenHeader != null && !refreshTokenHeader.trim().isEmpty() 
+                ? refreshTokenHeader 
+                : (requestBody != null && requestBody.containsKey("refreshToken") 
+                        ? requestBody.get("refreshToken") 
+                        : refreshTokenCookie);
+        
+        String tokenSource = refreshTokenHeader != null && !refreshTokenHeader.trim().isEmpty() 
+                ? "header" 
+                : (requestBody != null && requestBody.containsKey("refreshToken") 
+                        ? "body" 
+                        : "cookie");
+        
+        if (refreshToken == null || refreshToken.trim().isEmpty()) {
+            log.warn("Refresh token required but not provided from any source (header/body/cookie)");
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("Refresh token is required"));
         }
@@ -125,9 +180,9 @@ public class AuthController {
                         // Update last used time of the refresh token
                         refreshTokenService.updateLastUsedTime(token);
                         
-                        // Log successful refresh
-                        log.info("Access token refreshed successfully for user: {}, device: {}", 
-                                token.getUser().getId(), token.getDeviceId());
+                        // Log successful refresh with token source
+                        log.info("Access token refreshed successfully for user: {}, device: {}, token source: {}", 
+                                token.getUser().getId(), token.getDeviceId(), tokenSource);
                         
                         // Calculate expires in seconds (15 minutes)
                         Long expiresIn = 900L; // 15 * 60 seconds
@@ -142,12 +197,12 @@ public class AuthController {
                                 ApiResponse.success("Token refreshed successfully", refreshResponse));
                     })
                     .orElseGet(() -> {
-                        log.warn("Invalid refresh token attempt: {}", refreshToken);
+                        log.warn("Invalid refresh token attempt from source: {}", tokenSource);
                         return ResponseEntity.badRequest()
                                 .body(ApiResponse.error("Invalid refresh token"));
                     });
         } catch (TokenRefreshException e) {
-            log.error("Error refreshing token: {}", e.getMessage());
+            log.error("Error refreshing token from source: {} - {}", tokenSource, e.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(e.getMessage()));
         }
@@ -406,8 +461,32 @@ public class AuthController {
         }
     }
 
-    private void setRefreshTokenCookie(HttpServletResponse response, Long userId, String deviceId) {
+    /**
+     * Helper method to create refresh token for a user and device.
+     * This method is used by both mobile (returns token in body) and web (sets cookie) flows.
+     * 
+     * @param userId The user ID
+     * @param deviceId The device ID (required)
+     * @return The created RefreshToken entity
+     */
+    private RefreshToken createRefreshTokenForUser(Long userId, String deviceId) {
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Device ID is required to create refresh token");
+        }
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(userId, deviceId);
+        log.info("Created refresh token for user: {}, device: {}", userId, deviceId);
+        return refreshToken;
+    }
+
+    /**
+     * Sets refresh token as HTTP-only cookie for web clients.
+     * 
+     * @param response HTTP response
+     * @param userId The user ID
+     * @param deviceId The device ID
+     */
+    private void setRefreshTokenCookie(HttpServletResponse response, Long userId, String deviceId) {
+        RefreshToken refreshToken = createRefreshTokenForUser(userId, deviceId);
         
         Cookie cookie = new Cookie("refresh_token", refreshToken.getToken());
         cookie.setMaxAge(30 * 24 * 60 * 60); // 30 days
@@ -417,7 +496,7 @@ public class AuthController {
         cookie.setAttribute("SameSite", "Strict");
         response.addCookie(cookie);
         
-        log.info("Set refresh token cookie for user: {}, device: {}", userId, deviceId);
+        log.info("Set refresh token cookie for user: {}, device: {} (web client)", userId, deviceId);
     }
 
     // ===== NEW ACTIVATION ENDPOINTS =====

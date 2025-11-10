@@ -1,5 +1,6 @@
 package com.fix4home.fix4home.model.dto.auth;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.model.enums.UserStatus;
 import lombok.AllArgsConstructor;
@@ -13,12 +14,16 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class AuthResponse {
     
     private String accessToken;
     @Builder.Default
     private String tokenType = "Bearer";
     private Long expiresIn; // in seconds
+    
+    // Refresh token (only populated for mobile clients with X-Device-Id header)
+    private String refreshToken;
     
     // User info
     private Long userId;
