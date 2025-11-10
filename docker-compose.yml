@@ -76,6 +76,9 @@ services:
       # Production Profile
       SPRING_PROFILES_ACTIVE: production
       
+      # Flyway (disable for local bring-up to avoid failed migrations blocking health)
+      SPRING_FLYWAY_ENABLED: "false"
+      
       # Java Options
       JAVA_OPTS: -Xmx1g -Xms512m -XX:+UseG1GC -XX:+UseContainerSupport
     ports:

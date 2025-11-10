@@ -33,6 +33,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -542,12 +545,12 @@ public class AuthController {
             // Check if it's a rate limit error
             if (response.getMessage().contains("60 giây") || response.getMessage().contains("giới hạn")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(ApiResponse.error("Rate limit exceeded", response));
+                        .body(ApiResponse.error("Rate limit exceeded"));
             }
             
             log.error("Failed to send activation link to email: {}", request.getEmail());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Failed to send activation link", response));
+                    .body(ApiResponse.error("Failed to send activation link"));
         }
     }
 
@@ -578,12 +581,12 @@ public class AuthController {
             // Check if it's a rate limit error
             if (response.getMessage().contains("60 giây") || response.getMessage().contains("giới hạn")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(ApiResponse.error("Rate limit exceeded", response));
+                        .body(ApiResponse.error("Rate limit exceeded"));
             }
             
             log.error("Failed to resend activation link to email: {}", request.getEmail());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Failed to resend activation link", response));
+                    .body(ApiResponse.error("Failed to resend activation link"));
         }
     }
 
@@ -619,12 +622,12 @@ public class AuthController {
             // Check if it's a rate limit error
             if (response.getMessage().contains("60 giây") || response.getMessage().contains("giới hạn")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(ApiResponse.error("Rate limit exceeded", response));
+                        .body(ApiResponse.error("Rate limit exceeded"));
             }
             
             log.error("Failed to send password reset link to email: {}", request.getEmail());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Failed to send password reset link", response));
+                    .body(ApiResponse.error("Failed to send password reset link"));
         }
     }
 
