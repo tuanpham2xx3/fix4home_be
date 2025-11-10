@@ -29,15 +29,13 @@ public class RegisterRequest {
     @NotBlank(message = "Email is required")
     private String email;
     
-    @NotBlank(message = "Phone number is required")
-    @Pattern(regexp = "\\d{10,11}", message = "Phone number must be 10-11 digits")
-    private String phoneNumber;
+    @Pattern(regexp = "^\\d{10,11}$", message = "Phone number must be 10-11 digits")
+    private String phoneNumber;  // Optional for CUSTOMER, required for TECHNICIAN (validated in service layer)
     
     @NotNull(message = "Role is required")
     private Role role;
     
-    // Optional profile fields
-    @NotBlank(message = "Full name is required")
+    // Optional profile fields (optional for CUSTOMER, required for TECHNICIAN)
     private String fullName;
     
     // For technician registration

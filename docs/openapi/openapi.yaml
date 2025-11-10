@@ -191,8 +191,6 @@ components:
         - email
         - password
         - role
-        - fullName
-        - phone
       properties:
         email:
           type: string
@@ -207,10 +205,25 @@ components:
           $ref: '#/components/schemas/UserRole'
         fullName:
           type: string
+          description: Full name (optional for CUSTOMER, required for TECHNICIAN)
           example: John Doe
-        phone:
+          nullable: true
+        phoneNumber:
           type: string
+          description: Phone number (optional for CUSTOMER, required for TECHNICIAN). Must be 10-11 digits if provided.
+          pattern: "^\\d{10,11}$"
           example: "0123456789"
+          nullable: true
+        skills:
+          type: string
+          description: Technician skills (required for TECHNICIAN role)
+          example: Plumbing, Electrical
+          nullable: true
+        experience:
+          type: string
+          description: Technician experience (required for TECHNICIAN role)
+          example: 5 years
+          nullable: true
 
     LoginRequest:
       type: object
@@ -1256,6 +1269,11 @@ paths:
       description: |
         Register a new user account (Customer, Technician, or Admin).
         
+        **Required Fields:**
+        - `email`, `password`, `role` (always required)
+        - `fullName`, `phoneNumber` (required for TECHNICIAN, optional for CUSTOMER)
+        - `skills`, `experience` (required for TECHNICIAN only)
+        
         **Client Type Detection:**
         - **Mobile clients**: Include `X-Device-Id` header → Receive `refreshToken` in response body
         - **Web clients**: Omit `X-Device-Id` header → No refresh token (deviceId required for refresh token creation)
@@ -1281,22 +1299,30 @@ paths:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
             examples:
-              customer:
-                summary: Register Customer
+              customer_minimal:
+                summary: Register Customer (minimal - no fullName/phone)
+                value:
+                  email: customer@example.com
+                  password: password123
+                  role: CUSTOMER
+              customer_full:
+                summary: Register Customer (with fullName and phoneNumber)
                 value:
                   email: customer@example.com
                   password: password123
                   role: CUSTOMER
                   fullName: John Doe
-                  phone: "0123456789"
+                  phoneNumber: "0123456789"
               technician:
-                summary: Register Technician
+                summary: Register Technician (fullName and phoneNumber required)
                 value:
                   email: technician@example.com
                   password: password123
                   role: TECHNICIAN
                   fullName: Tech Smith
-                  phone: "0987654321"
+                  phoneNumber: "0987654321"
+                  skills: "Plumbing, Electrical"
+                  experience: "5 years"
       responses:
         '200':
           description: User registered successfully
@@ -1310,8 +1336,23 @@ paths:
                       data:
                         $ref: '#/components/schemas/AuthResponse'
               examples:
-                mobile_client:
-                  summary: Mobile Client Response (with X-Device-Id header)
+                mobile_client_minimal:
+                  summary: Mobile Client Response - Minimal (no fullName/phone)
+                  value:
+                    success: true
+                    message: User registered successfully
+                    data:
+                      accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      tokenType: Bearer
+                      expiresIn: 900
+                      refreshToken: uuid-refresh-token-here
+                      userId: 1
+                      username: john_doe
+                      email: customer@example.com
+                      role: CUSTOMER
+                      status: PENDING_EMAIL_VERIFICATION
+                mobile_client_full:
+                  summary: Mobile Client Response - With fullName and phoneNumber
                   value:
                     success: true
                     message: User registered successfully
@@ -1339,10 +1380,8 @@ paths:
                       userId: 1
                       username: john_doe
                       email: customer@example.com
-                      phoneNumber: "0123456789"
                       role: CUSTOMER
                       status: PENDING_EMAIL_VERIFICATION
-                      fullName: John Doe
         '400':
           description: Invalid request data
           content:

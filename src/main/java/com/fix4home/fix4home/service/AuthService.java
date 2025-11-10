@@ -58,9 +58,22 @@ public class AuthService extends BaseService {
         validateRequired(request.getUsername(), "username");
         validateRequired(request.getPassword(), "password");
         validateRequired(request.getEmail(), "email");
-        validateRequired(request.getPhoneNumber(), "phoneNumber");
         validateRequired(request.getRole(), "role");
-        validateRequired(request.getFullName(), "fullName");
+        
+        // Normalize empty strings to null for optional fields
+        if (request.getFullName() != null && request.getFullName().trim().isEmpty()) {
+            request.setFullName(null);
+        }
+        if (request.getPhoneNumber() != null && request.getPhoneNumber().trim().isEmpty()) {
+            request.setPhoneNumber(null);
+        }
+        
+        // Validate role-specific fields
+        if (request.getRole() == Role.TECHNICIAN) {
+            validateRequired(request.getFullName(), "fullName");
+            validateRequired(request.getPhoneNumber(), "phoneNumber");
+        }
+        // For CUSTOMER, fullName and phoneNumber are optional
 
         // Validate admin registration
         if (request.getRole() == Role.ADMIN) {
@@ -86,7 +99,7 @@ public class AuthService extends BaseService {
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .email(request.getEmail())
-                .phoneNumber(request.getPhoneNumber())
+                .phoneNumber(request.getPhoneNumber())  // Can be null for CUSTOMER
                 .role(request.getRole())
                 .status(determineUserStatus(request.getRole()))
                 .build();
@@ -178,7 +191,7 @@ public class AuthService extends BaseService {
             case CUSTOMER -> {
                 CustomerProfile customerProfile = CustomerProfile.builder()
                         .user(user)
-                        .fullName(request.getFullName())
+                        .fullName(request.getFullName())  // Can be null for CUSTOMER
                         .build();
                 customerProfileRepository.save(customerProfile);
             }
