@@ -2,6 +2,7 @@ package com.fix4home.fix4home.service;
 
 import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.auth.AuthResponse;
+import com.fix4home.fix4home.model.dto.auth.ChangePasswordRequest;
 import com.fix4home.fix4home.model.dto.auth.LoginRequest;
 import com.fix4home.fix4home.model.dto.auth.RegisterRequest;
 import com.fix4home.fix4home.model.entity.CustomerProfile;
@@ -40,6 +41,7 @@ public class AuthService extends BaseService {
     private final AuthenticationManager authenticationManager;
     private final EmailVerificationService emailVerificationService;
     private final ActivationTokenService activationTokenService;
+    private final RefreshTokenService refreshTokenService;
 
     @Value("${admin.registration.key}")
     private String adminRegistrationKey;
@@ -262,5 +264,43 @@ public class AuthService extends BaseService {
             userDetails, null, userDetails.getAuthorities()
         );
         return tokenProvider.generateToken(authentication);
+    }
+
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        logBusinessOperation("CHANGE_PASSWORD", "userId=" + getCurrentUserId());
+
+        // Validate request
+        validateRequired(request, "request");
+        validateRequired(request.getOldPassword(), "oldPassword");
+        validateRequired(request.getNewPassword(), "newPassword");
+
+        // Get current authenticated user
+        User user = getCurrentUser();
+
+        // Verify old password
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            log.warn("Password change failed: Invalid old password for user: {}", user.getUsername());
+            throw new InvalidCredentialsException("Old password is incorrect");
+        }
+
+        // Validate new password is different from old password
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new BusinessValidationException("New password must be different from old password");
+        }
+
+        // Update password
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+        // Reset mustChangePassword flag
+        user.setMustChangePassword(false);
+
+        // Save user
+        userRepository.save(user);
+
+        // Revoke all refresh tokens to log out all devices
+        refreshTokenService.deleteByUserId(user.getId());
+
+        log.info("Password changed successfully for user: {}", user.getUsername());
     }
 } 

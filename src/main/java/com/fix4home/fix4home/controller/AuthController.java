@@ -3,6 +3,7 @@ package com.fix4home.fix4home.controller;
 import com.fix4home.fix4home.config.RateLimitConfig;
 import com.fix4home.fix4home.exception.TokenRefreshException;
 import com.fix4home.fix4home.model.dto.auth.AuthResponse;
+import com.fix4home.fix4home.model.dto.auth.ChangePasswordRequest;
 import com.fix4home.fix4home.model.dto.auth.ForgotPasswordRequest;
 import com.fix4home.fix4home.model.dto.auth.LoginRequest;
 import com.fix4home.fix4home.model.dto.auth.RefreshTokenResponse;
@@ -17,6 +18,7 @@ import com.fix4home.fix4home.model.entity.User;
 import com.fix4home.fix4home.repository.UserRepository;
 import com.fix4home.fix4home.security.CustomUserDetails;
 import com.fix4home.fix4home.security.JwtTokenProvider;
+import com.fix4home.fix4home.security.SecurityConstants;
 import com.fix4home.fix4home.service.AuthService;
 import com.fix4home.fix4home.service.EmailVerificationService;
 import com.fix4home.fix4home.service.ActivationTokenService;
@@ -27,6 +29,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -247,6 +250,16 @@ public class AuthController {
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success("Token is valid", tokenInfo));
+    }
+
+    @PostMapping("/change-password")
+    @PreAuthorize(SecurityConstants.IS_AUTHENTICATED)
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request) {
+        log.info("POST /api/v1/auth/change-password - Change password");
+        authService.changePassword(request);
+        return ResponseEntity.ok(
+                ApiResponse.<Void>success("Password changed successfully", null));
     }
 
     @PostMapping("/send-verification-code")

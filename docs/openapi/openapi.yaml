@@ -233,6 +233,24 @@ components:
           description: Email address to send password reset link
           example: user@example.com
 
+    ChangePasswordRequest:
+      type: object
+      required:
+        - oldPassword
+        - newPassword
+      properties:
+        oldPassword:
+          type: string
+          format: password
+          description: Current password
+          example: oldPassword123
+        newPassword:
+          type: string
+          format: password
+          description: New password (minimum 6 characters)
+          minLength: 6
+          example: newPassword123
+
     PasswordResetTokenResponse:
       type: object
       properties:
@@ -1234,6 +1252,50 @@ paths:
                 $ref: '#/components/schemas/ApiResponse'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/change-password:
+    post:
+      tags:
+        - Authentication
+      summary: Change password
+      description: Change user password by providing old password and new password. Requires authentication. All refresh tokens will be revoked after password change.
+      operationId: changePassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              oldPassword: oldPassword123
+              newPassword: newPassword123
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid old password or unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema:
