@@ -26,6 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 
+import java.security.SecureRandom;
+
 import static com.fix4home.fix4home.service.ServiceValidationUtils.*;
 
 @Service
@@ -51,14 +53,30 @@ public class AuthService extends BaseService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        logBusinessOperation("REGISTER_USER", "username=" + request.getUsername(), "role=" + request.getRole());
-
         // Validate request
         validateRequired(request, "request");
-        validateRequired(request.getUsername(), "username");
         validateRequired(request.getPassword(), "password");
         validateRequired(request.getEmail(), "email");
         validateRequired(request.getRole(), "role");
+        
+        // Auto-generate username if not provided
+        String username;
+        if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
+            username = generateUniqueUsername();
+            log.info("Auto-generated username: {} for email: {}", username, request.getEmail());
+        } else {
+            // Validate provided username
+            username = request.getUsername().trim();
+            if (username.length() < 3 || username.length() > 50) {
+                throw new BusinessValidationException("Username must be between 3 and 50 characters");
+            }
+            // Check if username already exists
+            if (userRepository.existsByUsername(username)) {
+                throw new UserAlreadyExistsException("username", username);
+            }
+        }
+        
+        logBusinessOperation("REGISTER_USER", "username=" + username + ", email=" + request.getEmail(), "role=" + request.getRole());
         
         // Normalize empty strings to null for optional fields
         if (request.getFullName() != null && request.getFullName().trim().isEmpty()) {
@@ -68,10 +86,19 @@ public class AuthService extends BaseService {
             request.setPhoneNumber(null);
         }
         
+        // Validate phone number format only if provided (for CUSTOMER)
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().matches("^\\d{10,11}$")) {
+            throw new BusinessValidationException("Phone number must be 10-11 digits");
+        }
+        
         // Validate role-specific fields
         if (request.getRole() == Role.TECHNICIAN) {
             validateRequired(request.getFullName(), "fullName");
             validateRequired(request.getPhoneNumber(), "phoneNumber");
+            // Validate phone format for technician
+            if (!request.getPhoneNumber().matches("^\\d{10,11}$")) {
+                throw new BusinessValidationException("Phone number must be 10-11 digits");
+            }
         }
         // For CUSTOMER, fullName and phoneNumber are optional
 
@@ -85,18 +112,14 @@ public class AuthService extends BaseService {
             }
         }
 
-        // Validate unique constraints
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new UserAlreadyExistsException("username", request.getUsername());
-        }
-
+        // Validate email uniqueness
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new UserAlreadyExistsException("Email already registered");
         }
 
         // Create user
         User user = User.builder()
-                .username(request.getUsername())
+                .username(username)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .email(request.getEmail())
                 .phoneNumber(request.getPhoneNumber())  // Can be null for CUSTOMER
@@ -315,5 +338,44 @@ public class AuthService extends BaseService {
         refreshTokenService.deleteByUserId(user.getId());
 
         log.info("Password changed successfully for user: {}", user.getUsername());
+    }
+
+    /**
+     * Generate unique username with format "user" + random 8-digit number
+     * Example: user12345678, user87654321, user45678901
+     * 
+     * @return unique username
+     */
+    private String generateUniqueUsername() {
+        SecureRandom random = new SecureRandom();
+        int maxAttempts = 100; // Prevent infinite loop
+        int attempt = 0;
+        
+        while (attempt < maxAttempts) {
+            // Generate random number between 10000000 and 99999999 (8 digits)
+            int randomNumber = 10000000 + random.nextInt(90000000); // 8 digits
+            String username = "user" + randomNumber;
+            
+            // Check if username already exists
+            if (!userRepository.existsByUsername(username)) {
+                return username;
+            }
+            
+            attempt++;
+            log.debug("Username {} already exists, generating new one... (attempt {})", username, attempt);
+        }
+        
+        // Fallback: use timestamp if all attempts fail (very unlikely)
+        String timestamp = String.valueOf(System.currentTimeMillis()).substring(5); // Last 8 digits
+        String fallbackUsername = "user" + timestamp;
+        
+        // If still exists, add random suffix
+        if (userRepository.existsByUsername(fallbackUsername)) {
+            int randomSuffix = random.nextInt(1000);
+            fallbackUsername = "user" + timestamp + randomSuffix;
+        }
+        
+        log.warn("Generated fallback username: {} after {} attempts", fallbackUsername, maxAttempts);
+        return fallbackUsername;
     }
 } 
