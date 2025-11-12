@@ -133,15 +133,26 @@ public class AuthService extends BaseService {
         createUserProfile(savedUser, request);
 
         // Send email verification for non-admin users
+        // Email service MUST send email successfully, otherwise registration fails
         if (savedUser.getStatus() == UserStatus.PENDING_EMAIL_VERIFICATION) {
             try {
                 ActivationTokenService.ActivationTokenResponse response = 
                     activationTokenService.generateActivationToken(savedUser, "registration");
                 if (!response.isSuccess()) {
-                    log.warn("Failed to send verification email to: {}", savedUser.getEmail());
+                    log.error("Failed to send verification email to: {}. Response: {}", 
+                             savedUser.getEmail(), response.getMessage());
+                    throw new BusinessValidationException(
+                        "Failed to send activation email: " + response.getMessage() + 
+                        ". Please try again later.");
                 }
+                log.info("Activation email sent successfully to: {}", savedUser.getEmail());
+            } catch (BusinessValidationException e) {
+                // Re-throw business exceptions
+                throw e;
             } catch (Exception e) {
-                log.error("Error sending verification email to: {}", savedUser.getEmail(), e);
+                log.error("Exception sending verification email to: {}", savedUser.getEmail(), e);
+                throw new BusinessValidationException(
+                    "Failed to send activation email. Please try again later.");
             }
         }
 

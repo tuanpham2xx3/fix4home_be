@@ -13,9 +13,13 @@ import com.fix4home.fix4home.model.dto.auth.SendVerificationCodeRequest;
 import com.fix4home.fix4home.model.dto.auth.TokenInfoDTO;
 import com.fix4home.fix4home.model.dto.auth.VerifyEmailRequest;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
+import com.fix4home.fix4home.model.entity.ActivationToken;
 import com.fix4home.fix4home.model.entity.RefreshToken;
 import com.fix4home.fix4home.model.entity.User;
+import com.fix4home.fix4home.model.enums.UserStatus;
+import com.fix4home.fix4home.repository.ActivationTokenRepository;
 import com.fix4home.fix4home.repository.UserRepository;
+import java.time.LocalDateTime;
 import com.fix4home.fix4home.security.CustomUserDetails;
 import com.fix4home.fix4home.security.JwtTokenProvider;
 import com.fix4home.fix4home.security.SecurityConstants;
@@ -54,6 +58,7 @@ public class AuthController {
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ActivationTokenRepository activationTokenRepository;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -825,5 +830,48 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to resend password reset link"));
         }
+    }
+
+    /**
+     * Check activation status by email (for frontend to check without token)
+     * @param email user email
+     * @return activation status information
+     */
+    @GetMapping("/check-activation-status")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> checkActivationStatus(
+            @RequestParam String email) {
+        
+        // Find user by email
+        User user = userRepository.findByEmail(email)
+                .orElse(null);
+        
+        if (user == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("User not found"));
+        }
+        
+        // Check if there's an active token
+        LocalDateTime now = LocalDateTime.now();
+        Optional<ActivationToken> activeToken = activationTokenRepository
+                .findActiveTokenByEmailAndAction(email, "registration", now);
+        
+        Map<String, Object> statusInfo = new HashMap<>();
+        statusInfo.put("email", user.getEmail());
+        statusInfo.put("userId", user.getId());
+        statusInfo.put("userStatus", user.getStatus().toString());
+        statusInfo.put("isActivated", user.getStatus() != UserStatus.PENDING_EMAIL_VERIFICATION);
+        statusInfo.put("hasActiveToken", activeToken.isPresent());
+        
+        if (activeToken.isPresent()) {
+            ActivationToken token = activeToken.get();
+            statusInfo.put("tokenExpiresAt", token.getExpiresAt().toString());
+            statusInfo.put("canResend", token.canResend());
+            if (token.getLastSentAt() != null) {
+                statusInfo.put("lastSentAt", token.getLastSentAt().toString());
+            }
+        }
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Activation status retrieved", statusInfo));
     }
 }

@@ -226,13 +226,19 @@ public class ActivationTokenService extends BaseService {
                 if (isNewToken) {
                     activationTokenRepository.delete(token);
                 }
+                log.error("Failed to send activation email to: {}. Response message: {}", 
+                         email, emailResponse.getMessage());
                 throw new BusinessValidationException("Failed to send activation email: " + emailResponse.getMessage());
             }
+        } catch (BusinessValidationException e) {
+            // Re-throw BusinessValidationException as-is
+            throw e;
         } catch (Exception e) {
             // If email sending failed and this was a new token, delete it
             if (isNewToken) {
                 activationTokenRepository.delete(token);
             }
+            log.error("Exception sending activation email to: {}. Error: {}", email, e.getMessage(), e);
             throw new BusinessValidationException("Failed to send activation email: " + e.getMessage());
         }
 

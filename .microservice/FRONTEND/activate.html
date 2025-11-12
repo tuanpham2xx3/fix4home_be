@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kích Hoạt Tài Khoản - Fix4Home</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+
+        .status {
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 16px;
+        }
+
+        .loading {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 2px solid #2196f3;
+        }
+
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 2px solid #4caf50;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            border: 2px solid #f44336;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2196f3;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .message {
+            margin: 15px 0;
+            line-height: 1.6;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            margin-top: 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .button:hover {
+            background: #5568d3;
+        }
+
+        .countdown {
+            margin-top: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">Fix4Home</div>
+        <h1>Kích Hoạt Tài Khoản</h1>
+        
+        <div id="status-container">
+            <!-- Status will be dynamically inserted here -->
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8100/api/v1';
+        
+        // Get token from URL
+        function getTokenFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('token');
+        }
+
+        // Show loading state
+        function showLoading() {
+            const container = document.getElementById('status-container');
+            container.innerHTML = `
+                <div class="status loading">
+                    <div class="spinner"></div>
+                    <div class="message">Đang xử lý kích hoạt tài khoản...</div>
+                </div>
+            `;
+        }
+
+        // Show success state
+        function showSuccess(data) {
+            const container = document.getElementById('status-container');
+            const email = data.email || 'của bạn';
+            const userStatus = data.userStatus || 'ACTIVE';
+            
+            let statusMessage = 'Tài khoản đã được kích hoạt thành công!';
+            if (userStatus === 'PENDING_APPROVAL') {
+                statusMessage = 'Email đã được xác minh. Tài khoản đang chờ phê duyệt từ quản trị viên.';
+            }
+
+            container.innerHTML = `
+                <div class="status success">
+                    <div class="message">
+                        <strong>✅ ${statusMessage}</strong>
+                        <br><br>
+                        Email: ${email}
+                    </div>
+                    <div class="countdown" id="countdown">Đang chuyển đến trang đăng nhập trong <span id="timer">3</span> giây...</div>
+                    <a href="/login.html" class="button">Đăng Nhập Ngay</a>
+                </div>
+            `;
+
+            // Auto redirect after 3 seconds
+            let countdown = 3;
+            const timerElement = document.getElementById('timer');
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                if (timerElement) {
+                    timerElement.textContent = countdown;
+                }
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    window.location.href = '/login.html';
+                }
+            }, 1000);
+        }
+
+        // Show error state
+        function showError(message) {
+            const container = document.getElementById('status-container');
+            container.innerHTML = `
+                <div class="status error">
+                    <div class="message">
+                        <strong>❌ Lỗi Kích Hoạt</strong>
+                        <br><br>
+                        ${message}
+                    </div>
+                    <div class="info">
+                        <p>Token có thể đã hết hạn hoặc không hợp lệ.</p>
+                        <p>Vui lòng kiểm tra lại email hoặc yêu cầu gửi lại link kích hoạt.</p>
+                    </div>
+                    <a href="/register.html" class="button">Đăng Ký Lại</a>
+                </div>
+            `;
+        }
+
+        // Activate account
+        async function activateAccount(token) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/verify-activation-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ token: token })
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    showSuccess(result.data);
+                } else {
+                    showError(result.message || 'Không thể kích hoạt tài khoản. Vui lòng thử lại.');
+                }
+            } catch (error) {
+                console.error('Activation error:', error);
+                showError('Lỗi kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.');
+            }
+        }
+
+        // Main execution
+        (function() {
+            const token = getTokenFromURL();
+            
+            if (!token) {
+                showError('Token không hợp lệ. Vui lòng kiểm tra lại link trong email.');
+                return;
+            }
+
+            showLoading();
+            activateAccount(token);
+        })();
+    </script>
+</body>
+</html>
+

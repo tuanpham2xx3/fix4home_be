@@ -1,5 +1,10 @@
 package com.fix4home.fix4home.service;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +18,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import jakarta.annotation.PostConstruct;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +27,15 @@ import java.util.Map;
 public class EmailVerificationService {
 
     private final RestTemplate restTemplate;
+    private final MeterRegistry meterRegistry;
+    
+    // Metrics
+    private Counter emailSendSuccessCounter;
+    private Counter emailSendFailureCounter;
+    private Counter emailHealthCheckCounter;
+    private Counter emailHealthCheckFailureCounter;
+    private Timer emailSendTimer;
+    private final AtomicBoolean serviceHealthy = new AtomicBoolean(true);
 
     @Value("${email.verification.service.url:http://localhost:8200}")
     private String emailServiceUrl;
@@ -35,6 +51,33 @@ public class EmailVerificationService {
 
     @Value("${email.activation.frontend.base-url:http://localhost:3000}")
     private String frontendBaseUrl;
+    
+    @PostConstruct
+    public void initMetrics() {
+        emailSendSuccessCounter = Counter.builder("email.send.success")
+            .description("Number of successful email sends")
+            .register(meterRegistry);
+        emailSendFailureCounter = Counter.builder("email.send.failure")
+            .description("Number of failed email sends")
+            .register(meterRegistry);
+        emailHealthCheckCounter = Counter.builder("email.health.check")
+            .description("Number of health checks performed")
+            .register(meterRegistry);
+        emailHealthCheckFailureCounter = Counter.builder("email.health.check.failure")
+            .description("Number of failed health checks")
+            .register(meterRegistry);
+        emailSendTimer = Timer.builder("email.send.duration")
+            .description("Time taken to send email")
+            .register(meterRegistry);
+    }
+    
+    /**
+     * Check if email service is healthy before sending
+     * @return true if healthy
+     */
+    public boolean isServiceHealthy() {
+        return serviceHealthy.get();
+    }
 
     /**
      * Send verification code to email
@@ -150,7 +193,9 @@ public class EmailVerificationService {
      * Check health of email verification service
      * @return true if service is healthy
      */
+    @Retry(name = "emailHealthCheck")
     public boolean checkServiceHealth() {
+        emailHealthCheckCounter.increment();
         try {
             ResponseEntity<Map> response = restTemplate.getForEntity(
                 emailServiceUrl + "/health", 
@@ -159,12 +204,22 @@ public class EmailVerificationService {
 
             if (response.getStatusCode() == HttpStatus.OK) {
                 Map<String, Object> body = response.getBody();
-                return body != null && "healthy".equals(body.get("status"));
+                boolean healthy = body != null && "healthy".equals(body.get("status"));
+                serviceHealthy.set(healthy);
+                if (!healthy) {
+                    emailHealthCheckFailureCounter.increment();
+                    log.warn("Email service health check returned unhealthy status");
+                }
+                return healthy;
             }
+            serviceHealthy.set(false);
+            emailHealthCheckFailureCounter.increment();
             return false;
 
         } catch (Exception e) {
             log.error("Error checking email service health: {}", e.getMessage());
+            serviceHealthy.set(false);
+            emailHealthCheckFailureCounter.increment();
             return false;
         }
     }
@@ -241,7 +296,20 @@ public class EmailVerificationService {
      * @param userId user ID for tracking
      * @return activation response with resend info
      */
+    @CircuitBreaker(name = "emailService", fallbackMethod = "sendActivationLinkFallback")
+    @Retry(name = "emailService")
     public ActivationResponse sendActivationLink(String email, String action, Long userId) {
+        // Health check before sending
+        if (!isServiceHealthy()) {
+            log.warn("Email service is unhealthy, performing health check before sending to: {}", email);
+            if (!checkServiceHealth()) {
+                log.error("Email service is down, cannot send activation link to: {}", email);
+                emailSendFailureCounter.increment();
+                throw new RuntimeException("Email service is unavailable");
+            }
+        }
+        
+        Timer.Sample sample = Timer.start(meterRegistry);
         try {
             // Prepare request headers
             HttpHeaders headers = new HttpHeaders();
@@ -262,6 +330,11 @@ public class EmailVerificationService {
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
+            // Log request details for debugging
+            log.info("Sending activation link request to: {} for email: {}, action: {}", 
+                    emailServiceUrl + "/generate-activation", email, action);
+            log.debug("Request body: {}", requestBody);
+
             // Send request to microservice
             ResponseEntity<Map> response = restTemplate.postForEntity(
                 emailServiceUrl + "/generate-activation", 
@@ -269,20 +342,50 @@ public class EmailVerificationService {
                 Map.class
             );
 
+            log.info("Email service response status: {}, body: {}", response.getStatusCode(), response.getBody());
+
             if (response.getStatusCode() == HttpStatus.OK) {
                 Map<String, Object> responseBody = response.getBody();
+                
+                if (responseBody == null) {
+                    log.error("Email service returned null response body");
+                    emailSendFailureCounter.increment();
+                    sample.stop(emailSendTimer);
+                    return ActivationResponse.builder()
+                        .success(false)
+                        .message("Email service returned empty response")
+                        .build();
+                }
+                
                 log.info("Activation link sent successfully to email: {} for action: {}", email, action);
+                emailSendSuccessCounter.increment();
+                sample.stop(emailSendTimer);
+                
+                // Safely extract values with null checks
+                Object canResendObj = responseBody.get("can_resend");
+                Object nextResendAtObj = responseBody.get("next_resend_at");
+                Object sendCountObj = responseBody.get("send_count");
+                Object maxSendsObj = responseBody.get("max_sends");
                 
                 return ActivationResponse.builder()
                     .success(true)
                     .message("Activation link sent successfully")
-                    .canResend((Boolean) responseBody.get("can_resend"))
-                    .nextResendAt((Long) responseBody.get("next_resend_at"))
-                    .sendCount((Integer) responseBody.get("send_count"))
-                    .maxSends((Integer) responseBody.get("max_sends"))
+                    .canResend(canResendObj != null ? (Boolean) canResendObj : false)
+                    .nextResendAt(nextResendAtObj != null ? 
+                        (nextResendAtObj instanceof Long ? (Long) nextResendAtObj : 
+                         nextResendAtObj instanceof Integer ? ((Integer) nextResendAtObj).longValue() : null) : null)
+                    .sendCount(sendCountObj != null ? 
+                        (sendCountObj instanceof Integer ? (Integer) sendCountObj : 
+                         sendCountObj instanceof Long ? ((Long) sendCountObj).intValue() : 0) : 0)
+                    .maxSends(maxSendsObj != null ? 
+                        (maxSendsObj instanceof Integer ? (Integer) maxSendsObj : 
+                         maxSendsObj instanceof Long ? ((Long) maxSendsObj).intValue() : 3) : 3)
                     .build();
             } else {
-                log.warn("Failed to send activation link. Status: {}", response.getStatusCode());
+                log.warn("Failed to send activation link. Status: {}, body: {}", 
+                        response.getStatusCode(), response.getBody());
+                emailSendFailureCounter.increment();
+                sample.stop(emailSendTimer);
                 return ActivationResponse.builder()
                     .success(false)
                     .message("Failed to send activation link")
@@ -294,6 +397,8 @@ public class EmailVerificationService {
                 // Parse rate limit response
                 try {
                     Map<String, Object> errorBody = new ObjectMapper().readValue(e.getResponseBodyAsString(), Map.class);
+                    emailSendFailureCounter.increment();
+                    sample.stop(emailSendTimer);
                     return ActivationResponse.builder()
                         .success(false)
                         .message((String) errorBody.get("message"))
@@ -309,17 +414,47 @@ public class EmailVerificationService {
             
             log.error("Client error when sending activation link to {}: {} - {}", 
                 email, e.getStatusCode(), e.getResponseBodyAsString());
+            emailSendFailureCounter.increment();
+            sample.stop(emailSendTimer);
+            serviceHealthy.set(false);
             return ActivationResponse.builder()
                 .success(false)
-                .message("Failed to send activation link")
+                .message("Failed to send activation link: " + e.getStatusCode())
                 .build();
+        } catch (ResourceAccessException e) {
+            log.error("Cannot connect to email service at {} for email: {}. Error: {}", 
+                     emailServiceUrl, email, e.getMessage(), e);
+            emailSendFailureCounter.increment();
+            sample.stop(emailSendTimer);
+            serviceHealthy.set(false);
+            throw new RuntimeException("Email service unavailable. Cannot connect to " + emailServiceUrl, e);
+        } catch (HttpServerErrorException e) {
+            log.error("Server error when sending activation link to {}: {} - {}", 
+                     email, e.getStatusCode(), e.getResponseBodyAsString());
+            emailSendFailureCounter.increment();
+            sample.stop(emailSendTimer);
+            serviceHealthy.set(false);
+            throw new RuntimeException("Email service error: " + e.getStatusCode(), e);
         } catch (Exception e) {
             log.error("Unexpected error when sending activation link to {}: {}", email, e.getMessage(), e);
-            return ActivationResponse.builder()
-                .success(false)
-                .message("Failed to send activation link")
-                .build();
+            emailSendFailureCounter.increment();
+            sample.stop(emailSendTimer);
+            serviceHealthy.set(false);
+            throw new RuntimeException("Failed to send activation link: " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Fallback method for circuit breaker
+     */
+    public ActivationResponse sendActivationLinkFallback(String email, String action, Long userId, Exception e) {
+        log.error("Circuit breaker activated for email service. Fallback triggered for email: {}", email, e);
+        emailSendFailureCounter.increment();
+        serviceHealthy.set(false);
+        return ActivationResponse.builder()
+            .success(false)
+            .message("Email service is temporarily unavailable. Please try again later.")
+            .build();
     }
 
     /**

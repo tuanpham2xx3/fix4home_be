@@ -66,6 +66,7 @@ services:
       
       # Email Service
       EMAIL_VERIFICATION_API_KEY: ${EMAIL_VERIFICATION_API_KEY:-fix4home_prod_123abc456def789}
+      EMAIL_VERIFICATION_SERVICE_URL: http://email-service:8200  # Use Docker service name
       
       # SSL Configuration (disabled for local development)
       SSL_ENABLED: ${SSL_ENABLED:-false}
@@ -92,6 +93,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      email-service:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -127,10 +130,10 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8200/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 15s
+      timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 20s
 
   # OpenAPI Documentation Server
   docs:
