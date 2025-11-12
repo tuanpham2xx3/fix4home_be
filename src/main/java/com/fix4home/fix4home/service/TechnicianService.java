@@ -32,6 +32,7 @@ public class TechnicianService extends BaseService {
     private final TechnicianProfileRepository technicianProfileRepository;
     private final SkillRepository skillRepository;
     private final TechnicianSkillRepository technicianSkillRepository;
+    private final FileManagementService fileManagementService;
 
     // ==================== TECHNICIAN PROFILE MANAGEMENT ====================
 
@@ -517,6 +518,15 @@ public class TechnicianService extends BaseService {
             builder.skillList(skillList);
         }
 
+        // Get user avatar URL
+        try {
+            String avatarUrl = fileManagementService.getUserAvatarUrl(user.getId());
+            builder.avatarUrl(avatarUrl);
+        } catch (Exception e) {
+            log.warn("Error getting avatar URL for user {}: {}", user.getId(), e.getMessage());
+            // Continue without avatar URL - don't fail the response
+        }
+
         return builder.build();
     }
 
@@ -720,6 +730,15 @@ public class TechnicianService extends BaseService {
         // Calculate relevance score
         Double relevanceScore = calculateTechnicianRelevanceScore(profile, searchRequest);
         
+        // Get user avatar URL
+        String profileImageUrl = null;
+        try {
+            profileImageUrl = fileManagementService.getUserAvatarUrl(profile.getUser().getId());
+        } catch (Exception e) {
+            log.warn("Error getting avatar URL for technician {}: {}", profile.getUser().getId(), e.getMessage());
+            // Continue without avatar URL - don't fail the response
+        }
+        
         return TechnicianSearchResultDTO.builder()
                 .userId(profile.getUser().getId())
                 .profileId(profile.getId())
@@ -739,6 +758,7 @@ public class TechnicianService extends BaseService {
                 .skillList(skillList)
                 .description(profile.getSkills()) // Using skills field as description
                 .relevanceScore(relevanceScore)
+                .profileImageUrl(profileImageUrl)
                 .build();
     }
     

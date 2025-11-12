@@ -51,4 +51,7 @@ public class TechnicianProfileDTO {
     private LocalDateTime approvedAt;
     private Long approvedBy;
     private String approvedByUsername;
+    
+    // Avatar
+    private String avatarUrl;
 } 

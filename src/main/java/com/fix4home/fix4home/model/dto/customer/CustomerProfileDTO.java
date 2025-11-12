@@ -32,4 +32,5 @@ public class CustomerProfileDTO {
     private String fullName;
     private Gender gender;
     private LocalDate dob;
+    private String avatarUrl;
 } 

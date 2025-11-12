@@ -36,6 +36,7 @@ public class AuthResponse {
     
     // Profile info
     private String fullName;
+    private String avatarUrl;
     
     // For technician
     private String skills;

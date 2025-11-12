@@ -35,6 +35,7 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
     private final CustomerProfileRepository customerProfileRepository;
     private final AddressRepository addressRepository;
     private final AddressApiService addressApiService;
+    private final FileManagementService fileManagementService;
 
     // ==================== PROFILE MANAGEMENT ====================
 
@@ -368,6 +369,15 @@ public class CustomerService extends BaseService implements DTOConverter<Custome
             builder.fullName(profile.getFullName())
                    .gender(profile.getGender())
                    .dob(profile.getDob());
+        }
+
+        // Get user avatar URL
+        try {
+            String avatarUrl = fileManagementService.getUserAvatarUrl(user.getId());
+            builder.avatarUrl(avatarUrl);
+        } catch (Exception e) {
+            log.warn("Error getting avatar URL for user {}: {}", user.getId(), e.getMessage());
+            // Continue without avatar URL - don't fail the response
         }
 
         return builder.build();

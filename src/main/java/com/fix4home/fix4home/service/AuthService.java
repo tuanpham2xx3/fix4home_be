@@ -44,6 +44,7 @@ public class AuthService extends BaseService {
     private final EmailVerificationService emailVerificationService;
     private final ActivationTokenService activationTokenService;
     private final RefreshTokenService refreshTokenService;
+    private final FileManagementService fileManagementService;
 
     @Value("${admin.registration.key}")
     private String adminRegistrationKey;
@@ -290,6 +291,15 @@ public class AuthService extends BaseService {
                 // Admin profile handling if needed
                 builder.fullName(user.getUsername()); // Use username for admin since no profile table
             }
+        }
+
+        // Get user avatar URL
+        try {
+            String avatarUrl = fileManagementService.getUserAvatarUrl(user.getId());
+            builder.avatarUrl(avatarUrl);
+        } catch (Exception e) {
+            log.warn("Error getting avatar URL for user {}: {}", user.getId(), e.getMessage());
+            // Continue without avatar URL - don't fail the response
         }
 
         return builder.build();

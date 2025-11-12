@@ -317,6 +317,11 @@ components:
           description: User full name (from profile)
           example: John Doe
           nullable: true
+        avatarUrl:
+          type: string
+          description: User avatar URL (latest uploaded avatar)
+          example: http://localhost:8100/api/v1/files/download/avatar-uuid.jpg
+          nullable: true
         skills:
           type: string
           description: Technician skills (only for TECHNICIAN role)
@@ -628,6 +633,11 @@ components:
           format: date
         gender:
           $ref: '#/components/schemas/Gender'
+        avatarUrl:
+          type: string
+          description: User avatar URL (latest uploaded avatar)
+          example: http://localhost:8100/api/v1/files/download/avatar-uuid.jpg
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -700,6 +710,11 @@ components:
         approvedAt:
           type: string
           format: date-time
+        avatarUrl:
+          type: string
+          description: User avatar URL (latest uploaded avatar)
+          example: http://localhost:8100/api/v1/files/download/avatar-uuid.jpg
+          nullable: true
         createdAt:
           type: string
           format: date-time

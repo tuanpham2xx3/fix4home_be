@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -171,6 +172,35 @@ public class FileManagementService extends BaseService {
                 .filter(this::canAccessFile)
                 .map(this::convertToDTO)
                 .toList();
+    }
+    
+    /**
+     * Get user avatar URL (latest avatar uploaded for the user)
+     * Returns the URL of the most recently uploaded avatar for the user.
+     * Access control is handled at the file download/view level.
+     * 
+     * @param userId User ID
+     * @return Avatar URL or null if not found
+     */
+    @Transactional(readOnly = true)
+    public String getUserAvatarUrl(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        
+        try {
+            // Get the latest avatar for the user (most recently uploaded)
+            Optional<FileMetadata> avatarOpt = fileMetadataRepository
+                    .findFirstByEntityTypeAndEntityIdOrderByCreatedAtDesc("USER_AVATAR", userId);
+            
+            // Return the file URL if avatar exists, null otherwise
+            // Access control is handled at the file download/view endpoint level
+            return avatarOpt.map(FileMetadata::getFileUrl).orElse(null);
+            
+        } catch (Exception e) {
+            log.warn("Error getting user avatar URL for user {}: {}", userId, e.getMessage());
+            return null;
+        }
     }
     
     /**

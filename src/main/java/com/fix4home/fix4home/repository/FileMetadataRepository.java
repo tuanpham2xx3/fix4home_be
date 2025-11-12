@@ -27,6 +27,9 @@ public interface FileMetadataRepository extends JpaRepository<FileMetadata, Long
     // Find files by entity
     List<FileMetadata> findByEntityTypeAndEntityIdOrderByCreatedAtAsc(String entityType, Long entityId);
     
+    // Find latest file by entity (for avatar, get the most recent one)
+    Optional<FileMetadata> findFirstByEntityTypeAndEntityIdOrderByCreatedAtDesc(String entityType, Long entityId);
+    
     // Find public files
     List<FileMetadata> findByIsPublicTrueOrderByCreatedAtDesc();
     Page<FileMetadata> findByIsPublicTrueOrderByCreatedAtDesc(Pageable pageable);
