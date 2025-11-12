@@ -167,7 +167,13 @@ public class AuthService extends BaseService {
 
         // Validate request
         validateRequired(request, "request");
-        validateRequired(request.getUsernameOrEmail(), "usernameOrEmail");
+        
+        // Get usernameOrEmail from request (supports email, username, or usernameOrEmail field)
+        String usernameOrEmailValue = request.getUsernameOrEmail();
+        if (usernameOrEmailValue == null || usernameOrEmailValue.trim().isEmpty()) {
+            throw new BusinessValidationException("Username or email is required");
+        }
+        
         validateRequired(request.getPassword(), "password");
 
         // Authenticate user

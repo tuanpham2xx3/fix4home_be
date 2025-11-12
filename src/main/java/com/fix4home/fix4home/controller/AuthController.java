@@ -101,9 +101,10 @@ public class AuthController {
     @PostMapping("/login")
     @Transactional
     public ResponseEntity<ApiResponse<AuthResponse>> login(
-            @Valid @RequestBody LoginRequest request,
+            @RequestBody LoginRequest request,
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
             HttpServletResponse response) {
+        // Validation is done in service layer to support email, username, or usernameOrEmail fields
         AuthResponse authResponse = authService.login(request);
         
         // Auto-detect client type based on X-Device-Id header

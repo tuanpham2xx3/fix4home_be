@@ -33,3 +33,8 @@ build/
 .vscode/
 
 .document/
+
+### Local Development ###
+uploads/
+*.log
+.java-wrapper/

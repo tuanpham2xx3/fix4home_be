@@ -8,8 +8,12 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 
 /**
  * AOP aspect for automatic input validation and sanitization
@@ -32,10 +36,9 @@ public class ValidationAspect {
         if (args != null && args.length > 0) {
             log.debug("Validating inputs for method: {}", joinPoint.getSignature().getName());
             
+            Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
             for (Object arg : args) {
-                if (arg != null) {
-                    validateObject(arg);
-                }
+                validateObject(arg, visited, 0);
             }
         }
     }
@@ -43,34 +46,48 @@ public class ValidationAspect {
     /**
      * Recursively validate an object and its fields
      */
-    private void validateObject(Object obj) {
-        if (obj == null) {
+    private void validateObject(Object obj, Set<Object> visited, int depth) {
+        if (obj == null || depth > 5) {
+            return;
+        }
+        
+        if (obj instanceof String) {
+            validateStringInput((String) obj);
             return;
         }
         
         // Skip primitive types and their wrappers
         if (isPrimitiveOrWrapper(obj.getClass())) {
-            if (obj instanceof String) {
-                validateStringInput((String) obj);
+            return;
+        }
+        
+        if (obj instanceof Collection<?>) {
+            for (Object item : (Collection<?>) obj) {
+                validateObject(item, visited, depth + 1);
             }
             return;
         }
         
-        // Skip collections validation for now (can be enhanced later)
-        if (obj instanceof Collection) {
+        if (obj.getClass().isArray()) {
+            int length = Array.getLength(obj);
+            for (int i = 0; i < length; i++) {
+                Object item = Array.get(obj, i);
+                validateObject(item, visited, depth + 1);
+            }
+            return;
+        }
+        
+        // Skip validation for non-project classes (framework/system objects)
+        Class<?> clazz = obj.getClass();
+        if (!clazz.getName().startsWith("com.fix4home")) {
+            return;
+        }
+        
+        if (!visited.add(obj)) {
             return;
         }
         
         // Validate object fields
-        Class<?> clazz = obj.getClass();
-        
-        // Skip Spring/framework classes
-        if (clazz.getName().startsWith("org.springframework") ||
-            clazz.getName().startsWith("java.") ||
-            clazz.getName().startsWith("javax.")) {
-            return;
-        }
-        
         Field[] fields = clazz.getDeclaredFields();
         
         for (Field field : fields) {
@@ -82,12 +99,13 @@ public class ValidationAspect {
                     validateStringInput((String) fieldValue);
                 } else if (fieldValue != null && !isPrimitiveOrWrapper(fieldValue.getClass())) {
                     // Recursively validate nested objects (with depth limit)
-                    validateObject(fieldValue);
+                    validateObject(fieldValue, visited, depth + 1);
                 }
             } catch (IllegalAccessException e) {
                 log.debug("Could not access field {} for validation", field.getName());
             }
         }
+        visited.remove(obj);
     }
     
     /**
