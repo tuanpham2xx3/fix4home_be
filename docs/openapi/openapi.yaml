@@ -17,6 +17,9 @@ info:
     - 📍 Location-based technician matching
     - 📝 Service post & consultation system
     - 🚨 Complaint handling
+    - 🔄 Email service with health checks, retry mechanism, and circuit breaker
+    - 📊 Metrics and monitoring for email service reliability
+    - ✅ Activation status checking without token
     
     ## Authentication
     Most endpoints require authentication via JWT token in the Authorization header:
@@ -55,6 +58,24 @@ info:
     - 60-second cooldown between resend attempts
     - Maximum 3 resend attempts per token
     - Tokens expire after 30 minutes
+    
+    ## Email Service Reliability
+    The email service is designed with high reliability and fault tolerance:
+    
+    - **Health Checks**: Automatic health monitoring every 30 seconds, with more frequent checks (10s) when service is unhealthy
+    - **Retry Mechanism**: Automatic retry with exponential backoff (3 attempts: 1s, 2s, 4s) for transient failures
+    - **Circuit Breaker**: Prevents cascading failures by stopping requests when service is down (opens after 50% failure rate, closes after 30s)
+    - **Connection Pooling**: Efficient HTTP connection management with connection pooling (max 50 connections, 20 per route)
+    - **Metrics**: Comprehensive metrics for monitoring:
+      - `email.send.success` - Successful email sends
+      - `email.send.failure` - Failed email sends
+      - `email.health.check` - Health check count
+      - `email.send.duration` - Email send duration
+    - **Activation Status Endpoint**: Check activation status by email without requiring a token (`/auth/check-activation-status`)
+    
+    ### Email Service Endpoints
+    - `POST /auth/verify-activation-token` - Verify and activate account using token from email
+    - `GET /auth/check-activation-status?email={email}` - Check activation status by email (no token required)
     
   version: 1.0.0
   contact:
@@ -1949,6 +1970,206 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/verify-activation-token:
+    post:
+      tags:
+        - Authentication
+      summary: Verify activation token
+      description: |
+        Verify an activation token from email link and activate the user account.
+        This endpoint is called when user clicks the activation link in their email.
+        For registration: Activates the account (sets status to ACTIVE or PENDING_APPROVAL for technicians).
+        For password reset: Activates the temporary password.
+      operationId: verifyActivationToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Activation token from email link
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Token verified and account activated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                            format: email
+                            example: "user@example.com"
+                          action:
+                            type: string
+                            enum: [registration, password_reset]
+                            example: "registration"
+                          userId:
+                            type: integer
+                            format: int64
+                            example: 123
+                          userStatus:
+                            type: string
+                            enum: [ACTIVE, PENDING_EMAIL_VERIFICATION, PENDING_APPROVAL, INACTIVE]
+                            example: "ACTIVE"
+              examples:
+                registration:
+                  summary: Registration activation
+                  value:
+                    success: true
+                    message: "Token verified successfully"
+                    data:
+                      email: "user@example.com"
+                      action: "registration"
+                      userId: 123
+                      userStatus: "ACTIVE"
+                password_reset:
+                  summary: Password reset activation
+                  value:
+                    success: true
+                    message: "Token verified successfully"
+                    data:
+                      email: "user@example.com"
+                      action: "password_reset"
+                      userId: 123
+                      userStatus: "ACTIVE"
+        '400':
+          description: Invalid or expired token, or user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_token:
+                  summary: Invalid token
+                  value:
+                    success: false
+                    message: "Invalid or expired activation token"
+                user_not_found:
+                  summary: User not found
+                  value:
+                    success: false
+                    message: "User not found"
+
+  /auth/check-activation-status:
+    get:
+      tags:
+        - Authentication
+      summary: Check activation status by email
+      description: |
+        Check the activation status of a user account by email address.
+        This endpoint allows frontend to check activation status without requiring a token.
+        Useful for displaying activation status in UI and determining if resend is needed.
+      operationId: checkActivationStatus
+      security: []
+      parameters:
+        - name: email
+          in: query
+          required: true
+          description: User email address
+          schema:
+            type: string
+            format: email
+            example: "user@example.com"
+      responses:
+        '200':
+          description: Activation status retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                            format: email
+                            example: "user@example.com"
+                          userId:
+                            type: integer
+                            format: int64
+                            example: 123
+                          userStatus:
+                            type: string
+                            enum: [ACTIVE, PENDING_EMAIL_VERIFICATION, PENDING_APPROVAL, INACTIVE]
+                            description: Current user account status
+                            example: "PENDING_EMAIL_VERIFICATION"
+                          isActivated:
+                            type: boolean
+                            description: Whether the account is activated (not pending email verification)
+                            example: false
+                          hasActiveToken:
+                            type: boolean
+                            description: Whether there is an active (unexpired, unused) activation token
+                            example: true
+                          tokenExpiresAt:
+                            type: string
+                            format: date-time
+                            description: Expiration time of the active token (if exists)
+                            example: "2024-01-15T10:30:00Z"
+                          canResend:
+                            type: boolean
+                            description: Whether activation email can be resent (cooldown period passed)
+                            example: true
+                          lastSentAt:
+                            type: string
+                            format: date-time
+                            description: Last time activation email was sent (if exists)
+                            example: "2024-01-15T10:00:00Z"
+              examples:
+                pending_activation:
+                  summary: Account pending activation
+                  value:
+                    success: true
+                    message: "Activation status retrieved"
+                    data:
+                      email: "user@example.com"
+                      userId: 123
+                      userStatus: "PENDING_EMAIL_VERIFICATION"
+                      isActivated: false
+                      hasActiveToken: true
+                      tokenExpiresAt: "2024-01-15T10:30:00Z"
+                      canResend: true
+                      lastSentAt: "2024-01-15T10:00:00Z"
+                already_activated:
+                  summary: Account already activated
+                  value:
+                    success: true
+                    message: "Activation status retrieved"
+                    data:
+                      email: "user@example.com"
+                      userId: 123
+                      userStatus: "ACTIVE"
+                      isActivated: true
+                      hasActiveToken: false
+        '400':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                user_not_found:
+                  summary: User not found
+                  value:
+                    success: false
+                    message: "User not found"
 
   # ============= Customer Management Endpoints =============
   /customers/profile:

@@ -27,15 +27,25 @@ SET status = 'PENDING_APPROVAL'
 WHERE status = 'ACTIVE';
 
 -- Create index for approval queries
-CREATE INDEX idx_technician_profiles_status ON technician_profiles(status);
 CREATE INDEX idx_technician_profiles_approved_by ON technician_profiles(approved_by);
 CREATE INDEX idx_technician_profiles_approved_at ON technician_profiles(approved_at);
 
 -- Add comments for documentation
-COMMENT ON COLUMN technician_profiles.verification_documents IS 'URL or path to verification documents uploaded by technician';
-COMMENT ON COLUMN technician_profiles.rejection_reason IS 'Reason provided by admin when rejecting technician application';
-COMMENT ON COLUMN technician_profiles.approved_at IS 'Timestamp when technician was approved by admin';
-COMMENT ON COLUMN technician_profiles.approved_by IS 'User ID of admin who approved the technician';
+ALTER TABLE technician_profiles
+    MODIFY COLUMN verification_documents VARCHAR(1000) NULL
+        COMMENT 'URL or path to verification documents uploaded by technician';
+
+ALTER TABLE technician_profiles
+    MODIFY COLUMN rejection_reason VARCHAR(500) NULL
+        COMMENT 'Reason provided by admin when rejecting technician application';
+
+ALTER TABLE technician_profiles
+    MODIFY COLUMN approved_at TIMESTAMP NULL
+        COMMENT 'Timestamp when technician was approved by admin';
+
+ALTER TABLE technician_profiles
+    MODIFY COLUMN approved_by BIGINT NULL
+        COMMENT 'User ID of admin who approved the technician';
 
 -- Add foreign key constraint for approved_by field (references users table)
 ALTER TABLE technician_profiles 

@@ -3,6 +3,8 @@ services:
   mysql:
     image: mysql:8.0
     container_name: fix4home-mysql
+    command:
+      - --log-bin-trust-function-creators=1
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-pass123}
       MYSQL_DATABASE: ${DB_NAME:-fix4home_db}
@@ -77,8 +79,8 @@ services:
       # Production Profile
       SPRING_PROFILES_ACTIVE: production
       
-      # Flyway (disable for local bring-up to avoid failed migrations blocking health)
-      SPRING_FLYWAY_ENABLED: "false"
+      # Flyway configuration (enabled for automatic migrations)
+      SPRING_FLYWAY_ENABLED: "true"
       
       # Java Options
       JAVA_OPTS: -Xmx1g -Xms512m -XX:+UseG1GC -XX:+UseContainerSupport

@@ -10,32 +10,128 @@
 -- ================================================================
 
 -- Improve service_requests query performance
+SET @idx_name := 'idx_service_requests_customer_status';
+SET @tbl_name := 'service_requests';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_service_requests_customer_status 
     ON service_requests(customer_id, status, created_at DESC);
 
+SET @idx_name := 'idx_service_requests_technician_status';
+SET @tbl_name := 'service_requests';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_service_requests_technician_status 
     ON service_requests(technician_id, status, created_at DESC);
+
+SET @idx_name := 'idx_service_requests_status_created';
+SET @tbl_name := 'service_requests';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE INDEX idx_service_requests_status_created 
     ON service_requests(status, created_at DESC);
 
 -- Improve technician_profiles search performance
+SET @idx_name := 'idx_technician_profiles_rating_status';
+SET @tbl_name := 'technician_profiles';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_technician_profiles_rating_status 
     ON technician_profiles(rating DESC, status);
 
 -- Improve payment queries
+SET @idx_name := 'idx_payments_status_created';
+SET @tbl_name := 'payments';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_payments_status_created 
     ON payments(status, created_at DESC);
 
 -- Improve feedback queries for ratings
+SET @idx_name := 'idx_feedbacks_rating_created';
+SET @tbl_name := 'feedbacks';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_feedbacks_rating_created 
     ON feedbacks(rating, created_at DESC);
 
 -- Improve notification queries
+SET @idx_name := 'idx_notifications_user_read_created';
+SET @tbl_name := 'notifications';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_notifications_user_read_created 
     ON notifications(user_id, is_read, created_at DESC);
 
 -- Improve refresh token cleanup queries
+SET @idx_name := 'idx_refresh_tokens_expiry_created';
+SET @tbl_name := 'refresh_tokens';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_refresh_tokens_expiry_created 
     ON refresh_tokens(expiry_date, created_at);
 
@@ -44,18 +140,66 @@ CREATE INDEX idx_refresh_tokens_expiry_created
 -- ================================================================
 
 -- Add covering indexes for common queries
+SET @idx_name := 'idx_users_role_status_email';
+SET @tbl_name := 'users';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_users_role_status_email 
     ON users(role, status, email);
 
 -- Optimize address queries for location services
+SET @idx_name := 'idx_addresses_user_city_district';
+SET @tbl_name := 'addresses';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_addresses_user_city_district 
     ON addresses(user_id, city, district);
 
 -- Optimize service queries
+SET @idx_name := 'idx_services_status_name';
+SET @tbl_name := 'services';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_services_status_name 
     ON services(status, name);
 
 -- Optimize skills queries for technician matching
+SET @idx_name := 'idx_skills_status_name';
+SET @tbl_name := 'skills';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE INDEX idx_skills_status_name 
     ON skills(status, name);
 
@@ -92,13 +236,30 @@ ALTER TABLE search_history PARTITION BY RANGE (YEAR(created_at) * 100 + QUARTER(
 -- ================================================================
 
 -- Procedure to get technician rankings
+DROP PROCEDURE IF EXISTS GetTechnicianRankings;
 DELIMITER //
 CREATE PROCEDURE GetTechnicianRankings(
-    IN p_limit INT DEFAULT 10,
-    IN p_min_rating FLOAT DEFAULT 0.0,
-    IN p_service_id BIGINT DEFAULT NULL
+    IN p_limit INT,
+    IN p_min_rating FLOAT,
+    IN p_service_id BIGINT
 )
 BEGIN
+    DECLARE v_limit INT DEFAULT 10;
+    DECLARE v_min_rating FLOAT DEFAULT 0.0;
+    DECLARE v_service_id BIGINT DEFAULT NULL;
+
+    IF p_limit IS NOT NULL THEN
+        SET v_limit = p_limit;
+    END IF;
+
+    IF p_min_rating IS NOT NULL THEN
+        SET v_min_rating = p_min_rating;
+    END IF;
+
+    IF p_service_id IS NOT NULL THEN
+        SET v_service_id = p_service_id;
+    END IF;
+
     SELECT 
         tp.id,
         tp.user_id,
@@ -116,15 +277,16 @@ BEGIN
     LEFT JOIN skills s ON ts.skill_id = s.id
     WHERE tp.status = 'ACTIVE'
         AND u.status = 'ACTIVE'
-        AND tp.rating >= p_min_rating
-        AND (p_service_id IS NULL OR s.id = p_service_id)
+        AND tp.rating >= v_min_rating
+        AND (v_service_id IS NULL OR s.id = v_service_id)
     GROUP BY tp.id, tp.user_id, tp.full_name, tp.rating
     ORDER BY tp.rating DESC, completed_jobs DESC
-    LIMIT p_limit;
+    LIMIT v_limit;
 END //
 DELIMITER ;
 
 -- Procedure to clean up expired tokens
+DROP PROCEDURE IF EXISTS CleanupExpiredTokens;
 DELIMITER //
 CREATE PROCEDURE CleanupExpiredTokens()
 BEGIN
@@ -144,6 +306,7 @@ DELIMITER ;
 -- ================================================================
 
 -- View for active technicians with their skills
+DROP VIEW IF EXISTS active_technicians_with_skills;
 CREATE VIEW active_technicians_with_skills AS
 SELECT 
     tp.id as technician_profile_id,
@@ -168,6 +331,7 @@ GROUP BY tp.id, tp.user_id, u.username, u.email, u.phone_number,
          tp.full_name, tp.rating, tp.status, tp.created_at, tp.updated_at;
 
 -- View for service request summary
+DROP VIEW IF EXISTS service_request_summary;
 CREATE VIEW service_request_summary AS
 SELECT 
     sr.id,
@@ -196,6 +360,7 @@ LEFT JOIN feedbacks f ON sr.id = f.service_request_id;
 -- ================================================================
 
 -- Trigger to update conversation last_message_at when new message is added
+DROP TRIGGER IF EXISTS tr_update_conversation_last_message;
 DELIMITER //
 CREATE TRIGGER tr_update_conversation_last_message
     AFTER INSERT ON messages
@@ -209,6 +374,7 @@ END //
 DELIMITER ;
 
 -- Trigger to update technician rating when feedback is added/updated
+DROP TRIGGER IF EXISTS tr_update_technician_rating_insert;
 DELIMITER //
 CREATE TRIGGER tr_update_technician_rating_insert
     AFTER INSERT ON feedbacks
@@ -226,6 +392,7 @@ BEGIN
 END //
 DELIMITER ;
 
+DROP TRIGGER IF EXISTS tr_update_technician_rating_update;
 DELIMITER //
 CREATE TRIGGER tr_update_technician_rating_update
     AFTER UPDATE ON feedbacks
@@ -248,6 +415,7 @@ DELIMITER ;
 -- ================================================================
 
 -- Table to track slow queries
+DROP TABLE IF EXISTS slow_query_log;
 CREATE TABLE slow_query_log (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     query_hash VARCHAR(64) NOT NULL,
@@ -266,6 +434,7 @@ CREATE TABLE slow_query_log (
 ) COMMENT = 'Application-level slow query logging';
 
 -- Table to track database statistics
+DROP TABLE IF EXISTS database_stats;
 CREATE TABLE database_stats (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     metric_name VARCHAR(100) NOT NULL,
@@ -284,16 +453,49 @@ CREATE TABLE database_stats (
 -- ================================================================
 
 -- Full-text search for service descriptions
-ALTER TABLE services 
-ADD FULLTEXT(name, description);
+SET @idx_name := 'idx_services_fulltext';
+SET @tbl_name := 'services';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE FULLTEXT INDEX idx_services_fulltext ON services (name, description);
 
 -- Full-text search for service request descriptions
-ALTER TABLE service_requests 
-ADD FULLTEXT(description);
+SET @idx_name := 'idx_service_requests_fulltext';
+SET @tbl_name := 'service_requests';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE FULLTEXT INDEX idx_service_requests_fulltext ON service_requests (description);
 
 -- Full-text search for technician skills and experience
-ALTER TABLE technician_profiles 
-ADD FULLTEXT(skills, experience);
+SET @idx_name := 'idx_technician_profiles_fulltext';
+SET @tbl_name := 'technician_profiles';
+SET @drop_index_sql := NULL;
+SELECT CONCAT('ALTER TABLE ', @tbl_name, ' DROP INDEX ', @idx_name) INTO @drop_index_sql
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = @tbl_name AND index_name = @idx_name
+LIMIT 1;
+SET @drop_index_sql := IF(@drop_index_sql IS NULL, 'SELECT 1', @drop_index_sql);
+PREPARE stmt FROM @drop_index_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE FULLTEXT INDEX idx_technician_profiles_fulltext ON technician_profiles (skills, experience);
 
 -- ================================================================
 -- 9. OPTIMIZATION SETTINGS RECOMMENDATIONS
@@ -338,6 +540,7 @@ max_binlog_size = 100M
 -- ================================================================
 
 -- Procedure to analyze table statistics
+DROP PROCEDURE IF EXISTS AnalyzeTableStatistics;
 DELIMITER //
 CREATE PROCEDURE AnalyzeTableStatistics()
 BEGIN
@@ -351,6 +554,7 @@ END //
 DELIMITER ;
 
 -- Procedure to optimize tables
+DROP PROCEDURE IF EXISTS OptimizeTables;
 DELIMITER //
 CREATE PROCEDURE OptimizeTables()
 BEGIN
@@ -364,6 +568,7 @@ DELIMITER ;
 -- ================================================================
 
 -- Update migration log
+DELETE FROM migration_log WHERE version = 'V018';
 INSERT INTO migration_log (version, description) 
 VALUES ('V018', 'Database Performance Optimization - Added indexes, views, triggers, and stored procedures');
 

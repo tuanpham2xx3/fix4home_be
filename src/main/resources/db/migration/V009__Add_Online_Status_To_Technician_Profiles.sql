@@ -33,9 +33,26 @@ CREATE INDEX idx_technician_profiles_location ON technician_profiles(current_lat
 CREATE INDEX idx_technician_profiles_last_seen ON technician_profiles(last_seen_at);
 
 -- Add comments for documentation
-COMMENT ON COLUMN technician_profiles.is_online IS 'Indicates if technician is currently online and available';
-COMMENT ON COLUMN technician_profiles.last_seen_at IS 'Timestamp when technician was last seen online';
-COMMENT ON COLUMN technician_profiles.current_latitude IS 'Current latitude coordinate of technician';
-COMMENT ON COLUMN technician_profiles.current_longitude IS 'Current longitude coordinate of technician';
-COMMENT ON COLUMN technician_profiles.current_address IS 'Human-readable current address of technician';
-COMMENT ON COLUMN technician_profiles.working_radius IS 'Working radius in kilometers from current location'; 
+ALTER TABLE technician_profiles
+    MODIFY COLUMN is_online BOOLEAN NOT NULL DEFAULT FALSE
+        COMMENT 'Indicates if technician is currently online and available';
+
+ALTER TABLE technician_profiles
+    MODIFY COLUMN last_seen_at TIMESTAMP NULL
+        COMMENT 'Timestamp when technician was last seen online';
+
+ALTER TABLE technician_profiles
+    MODIFY COLUMN current_latitude DOUBLE PRECISION NULL
+        COMMENT 'Current latitude coordinate of technician';
+
+ALTER TABLE technician_profiles
+    MODIFY COLUMN current_longitude DOUBLE PRECISION NULL
+        COMMENT 'Current longitude coordinate of technician';
+
+ALTER TABLE technician_profiles
+    MODIFY COLUMN current_address VARCHAR(500) NULL
+        COMMENT 'Human-readable current address of technician';
+
+ALTER TABLE technician_profiles
+    MODIFY COLUMN working_radius INTEGER NOT NULL DEFAULT 10
+        COMMENT 'Working radius in kilometers from current location'; 

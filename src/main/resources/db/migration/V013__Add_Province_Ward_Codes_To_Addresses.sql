@@ -22,5 +22,10 @@ CREATE INDEX idx_addresses_ward_code ON addresses(ward_code);
 CREATE INDEX idx_addresses_province_ward ON addresses(province_code, ward_code);
 
 -- Add comments for documentation
-COMMENT ON COLUMN addresses.province_code IS 'Vietnam Administrative API province code (e.g., "01" for Hà Nội)';
-COMMENT ON COLUMN addresses.ward_code IS 'Vietnam Administrative API ward/district code for precise location identification'; 
+ALTER TABLE addresses
+    MODIFY COLUMN province_code VARCHAR(10) NULL
+        COMMENT 'Vietnam Administrative API province code (e.g., "01" for Hà Nội)';
+
+ALTER TABLE addresses
+    MODIFY COLUMN ward_code VARCHAR(10) NULL
+        COMMENT 'Vietnam Administrative API ward/district code for precise location identification'; 

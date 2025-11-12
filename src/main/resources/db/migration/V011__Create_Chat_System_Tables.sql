@@ -85,20 +85,9 @@ CREATE TABLE messages (
 -- 3. ADD CONSTRAINTS AND BUSINESS RULES
 -- ================================================================
 
--- Ensure at least one business context is set in conversations
-ALTER TABLE conversations 
-ADD CONSTRAINT chk_conversation_context 
-CHECK (
-    (service_request_id IS NOT NULL AND service_post_id IS NULL AND consultation_id IS NULL) OR
-    (service_request_id IS NULL AND service_post_id IS NOT NULL AND consultation_id IS NULL) OR
-    (service_request_id IS NULL AND service_post_id IS NULL AND consultation_id IS NOT NULL) OR
-    (service_request_id IS NULL AND service_post_id IS NULL AND consultation_id IS NULL)
-);
-
--- Ensure customer and technician are different users
-ALTER TABLE conversations 
-ADD CONSTRAINT chk_different_participants 
-CHECK (customer_id != technician_id);
+-- NOTE: MySQL 8 does not allow CHECK constraints on columns that participate in
+-- foreign keys with ON DELETE SET NULL actions. The business rules originally
+-- expressed as CHECK constraints are enforced at the application layer.
 
 -- ================================================================
 -- 4. ADD COMMENTS FOR DOCUMENTATION
