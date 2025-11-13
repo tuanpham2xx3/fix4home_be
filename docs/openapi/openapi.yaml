@@ -362,6 +362,15 @@ components:
           format: int64
           description: User ID
           example: 1
+        username:
+          type: string
+          description: User username
+          example: user65202568
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: user@example.com
 
     ForgotPasswordRequest:
       type: object
@@ -1445,6 +1454,14 @@ paths:
         - **Web clients**: Omit `X-Device-Id` header → No refresh token (deviceId required for refresh token creation)
         
         **Note**: Refresh token creation requires `X-Device-Id` header. Web clients that need refresh token should provide this header.
+        
+        **JWT Access Token Claims:**
+        The returned access token includes the following claims:
+        - `sub`: Username (subject)
+        - `username`: User username
+        - `email`: User email address
+        - `iat`: Issued at timestamp
+        - `exp`: Expiration timestamp
       operationId: login
       security: []
       parameters:
@@ -1543,11 +1560,19 @@ paths:
         
         **Mobile Clients:**
         - Send refresh token in `X-Refresh-Token` header or request body
-        - Receive new access token in response
+        - Receive new access token in response along with user information (userId, username, email)
         
         **Web Clients:**
         - Refresh token automatically sent via HTTP-only cookie
-        - Receive new access token in response
+        - Receive new access token in response along with user information (userId, username, email)
+        
+        **JWT Access Token Claims:**
+        The returned access token includes the following claims:
+        - `sub`: Username (subject)
+        - `username`: User username
+        - `email`: User email address
+        - `iat`: Issued at timestamp
+        - `exp`: Expiration timestamp
       operationId: refreshToken
       security: []
       parameters:
@@ -1608,6 +1633,8 @@ paths:
                       tokenType: Bearer
                       expiresIn: 900
                       userId: 1
+                      username: user65202568
+                      email: user@example.com
         '400':
           description: Refresh token is required or invalid
           content:

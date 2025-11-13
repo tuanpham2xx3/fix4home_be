@@ -8,13 +8,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.util.ReflectionTestUtils;
+import com.fix4home.fix4home.model.enums.Role;
+import com.fix4home.fix4home.model.enums.UserStatus;
 
 import javax.crypto.SecretKey;
-import java.util.Collections;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,22 +34,27 @@ class JwtTokenProviderTest {
     @Test
     @DisplayName("Should generate valid JWT token from Authentication")
     void generateToken_FromAuthentication_ShouldReturnValidToken() {
-        // Arrange
-        UserDetails userDetails = User.builder()
+        com.fix4home.fix4home.model.entity.User user = com.fix4home.fix4home.model.entity.User.builder()
+                .id(99L)
                 .username("testuser")
                 .password("password")
-                .authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")))
+                .email("test@example.com")
+                .role(Role.CUSTOMER)
+                .status(UserStatus.ACTIVE)
                 .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(user);
         Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
 
-        // Act
         String token = jwtTokenProvider.generateToken(authentication);
+        Claims claims = jwtTokenProvider.getClaimsFromToken(token);
 
-        // Assert
         assertNotNull(token);
         assertFalse(token.isEmpty());
         assertTrue(jwtTokenProvider.validateToken(token));
-        assertEquals("testuser", jwtTokenProvider.getUsernameFromToken(token));
+        assertEquals(user.getUsername(), jwtTokenProvider.getUsernameFromToken(token));
+        assertEquals(user.getUsername(), claims.get("username"));
+        assertEquals(user.getEmail(), claims.get("email"));
     }
 
     @Test
@@ -335,5 +338,25 @@ class JwtTokenProviderTest {
         assertNotNull(token);
         assertTrue(jwtTokenProvider.validateToken(token));
         assertEquals(longUsername, jwtTokenProvider.getUsernameFromToken(token));
+    }
+
+    @Test
+    @DisplayName("Should include username and email claims when generating token from domain user")
+    void generateToken_FromDomainUser_ShouldIncludeClaims() {
+        com.fix4home.fix4home.model.entity.User user = com.fix4home.fix4home.model.entity.User.builder()
+                .id(100L)
+                .username("user65202568")
+                .password("encodedPassword")
+                .email("user@example.com")
+                .role(Role.CUSTOMER)
+                .status(UserStatus.ACTIVE)
+                .build();
+
+        String token = jwtTokenProvider.generateToken(user);
+        Claims claims = jwtTokenProvider.getClaimsFromToken(token);
+
+        assertNotNull(claims);
+        assertEquals(user.getUsername(), claims.get("username"));
+        assertEquals(user.getEmail(), claims.get("email"));
     }
 }

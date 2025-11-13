@@ -140,6 +140,22 @@ Cookie: refresh_token=<refresh_token>
 X-Device-Id: <device_id>
 ```
 
+**Backend trả về:**
+```json
+{
+    "success": true,
+    "message": "Token refreshed successfully",
+    "data": {
+        "accessToken": "<access_token>",
+        "tokenType": "Bearer",
+        "expiresIn": 900,
+        "userId": 1,
+        "username": "user65202568",
+        "email": "user@example.com"
+    }
+}
+```
+
 ---
 
 ## 2. 👤 QUẢN LÝ KHÁCH HÀNG

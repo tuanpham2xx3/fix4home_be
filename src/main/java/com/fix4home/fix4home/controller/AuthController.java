@@ -20,7 +20,6 @@ import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.ActivationTokenRepository;
 import com.fix4home.fix4home.repository.UserRepository;
 import java.time.LocalDateTime;
-import com.fix4home.fix4home.security.CustomUserDetails;
 import com.fix4home.fix4home.security.JwtTokenProvider;
 import com.fix4home.fix4home.security.SecurityConstants;
 import com.fix4home.fix4home.service.AuthService;
@@ -34,8 +33,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -194,8 +191,10 @@ public class AuthController {
                         Long expiresIn = 900L; // 15 * 60 seconds
                         
                         RefreshTokenResponse refreshResponse = new RefreshTokenResponse(
-                                accessToken, 
-                                token.getUser().getId(), 
+                                accessToken,
+                                token.getUser().getId(),
+                                token.getUser().getUsername(),
+                                token.getUser().getEmail(),
                                 expiresIn
                         );
                         

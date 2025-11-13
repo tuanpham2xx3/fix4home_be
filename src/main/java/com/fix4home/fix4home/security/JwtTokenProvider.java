@@ -1,5 +1,6 @@
 package com.fix4home.fix4home.security;
 
+import com.fix4home.fix4home.model.entity.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 @Slf4j
@@ -26,26 +29,55 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(Authentication authentication) {
-        UserDetails userPrincipal = (UserDetails) authentication.getPrincipal();
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof CustomUserDetails customUserDetails) {
+            return generateToken(customUserDetails.getUser());
+        }
+
+        if (principal instanceof UserDetails userDetails) {
+            return buildToken(userDetails.getUsername(), buildUsernameOnlyClaims(userDetails.getUsername()));
+        }
+
+        return buildToken(authentication.getName(), buildUsernameOnlyClaims(authentication.getName()));
+    }
+
+    public String generateToken(String username) {
+        return buildToken(username, buildUsernameOnlyClaims(username));
+    }
+
+    public String generateToken(User user) {
+        return buildToken(user.getUsername(), buildUserClaims(user));
+    }
+
+    private String buildToken(String subject, Map<String, Object> claims) {
         Date expiryDate = new Date(System.currentTimeMillis() + jwtExpirationInMs);
 
-        return Jwts.builder()
-                .subject(userPrincipal.getUsername())
+        JwtBuilder builder = Jwts.builder();
+
+        if (claims != null && !claims.isEmpty()) {
+            builder.claims(claims);
+        }
+
+        return builder
+                .subject(subject)
                 .issuedAt(new Date())
                 .expiration(expiryDate)
                 .signWith(getSigningKey())
                 .compact();
     }
 
-    public String generateToken(String username) {
-        Date expiryDate = new Date(System.currentTimeMillis() + jwtExpirationInMs);
+    private Map<String, Object> buildUserClaims(User user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("username", user.getUsername());
+        claims.put("email", user.getEmail());
+        return claims;
+    }
 
-        return Jwts.builder()
-                .subject(username)
-                .issuedAt(new Date())
-                .expiration(expiryDate)
-                .signWith(getSigningKey())
-                .compact();
+    private Map<String, Object> buildUsernameOnlyClaims(String username) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("username", username);
+        return claims;
     }
 
     public String getUsernameFromToken(String token) {
@@ -110,4 +142,4 @@ public class JwtTokenProvider {
             return 0L;
         }
     }
-} 
+}

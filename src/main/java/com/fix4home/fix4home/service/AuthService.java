@@ -13,7 +13,6 @@ import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.CustomerProfileRepository;
 import com.fix4home.fix4home.repository.TechnicianProfileRepository;
 import com.fix4home.fix4home.repository.UserRepository;
-import com.fix4home.fix4home.security.CustomUserDetails;
 import com.fix4home.fix4home.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -158,7 +157,7 @@ public class AuthService extends BaseService {
         }
 
         // Generate token (note: user still needs to verify email before they can login)
-        String token = tokenProvider.generateToken(savedUser.getUsername());
+        String token = tokenProvider.generateToken(savedUser);
 
         return buildAuthResponse(savedUser, token, request);
     }
@@ -216,7 +215,7 @@ public class AuthService extends BaseService {
         }
 
         // Generate token
-        String token = tokenProvider.generateToken(authentication);
+        String token = tokenProvider.generateToken(user);
 
         return buildAuthResponse(user, token, null);
     }
@@ -322,11 +321,7 @@ public class AuthService extends BaseService {
     }
 
     public String generateAccessToken(User user) {
-        CustomUserDetails userDetails = new CustomUserDetails(user);
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-            userDetails, null, userDetails.getAuthorities()
-        );
-        return tokenProvider.generateToken(authentication);
+        return tokenProvider.generateToken(user);
     }
 
     @Transactional
