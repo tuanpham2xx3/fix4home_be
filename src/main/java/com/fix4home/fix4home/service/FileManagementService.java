@@ -162,6 +162,21 @@ public class FileManagementService extends BaseService {
     }
     
     /**
+     * Get file metadata by stored filename
+     */
+    @Transactional(readOnly = true)
+    public FileMetadataDTO getFileMetadataByFilename(String filename) {
+        FileMetadata fileMetadata = fileMetadataRepository.findByStoredFilename(filename)
+                .orElseThrow(() -> new ResourceNotFoundException("File not found: " + filename));
+        
+        if (!canAccessFile(fileMetadata)) {
+            throw new BusinessValidationException("Access denied to file: " + filename);
+        }
+        
+        return convertToDTO(fileMetadata);
+    }
+    
+    /**
      * Get files by entity
      */
     @Transactional(readOnly = true)
@@ -215,6 +230,46 @@ public class FileManagementService extends BaseService {
     }
     
     /**
+     * Get images by type with optional public filter
+     */
+    @Transactional(readOnly = true)
+    public Page<FileMetadataDTO> getImagesByType(Boolean isPublic, Pageable pageable) {
+        Page<FileMetadata> images;
+        
+        if (isPublic != null && isPublic) {
+            // Get only public images
+            images = fileMetadataRepository.findWithCriteria(
+                    null, // user
+                    FileType.IMAGE, // fileType
+                    null, // entityType
+                    true, // isPublic
+                    null, // keyword
+                    pageable
+            );
+        } else {
+            // Get all images (with access control)
+            images = fileMetadataRepository.findByFileTypeOrderByCreatedAtDesc(FileType.IMAGE, pageable);
+        }
+        
+        // Convert to DTO and filter by access permissions
+        // Note: We filter after conversion, but this may not preserve pagination perfectly
+        // For better performance, consider filtering at database level
+        List<FileMetadataDTO> filteredDTOs = images.getContent().stream()
+                .filter(this::canAccessFile)
+                .map(this::convertToDTO)
+                .toList();
+        
+        // Create a new page with filtered content
+        // Note: This approach doesn't preserve total count accurately for filtered results
+        // For production, consider implementing database-level filtering
+        return new org.springframework.data.domain.PageImpl<>(
+                filteredDTOs,
+                pageable,
+                isPublic != null && isPublic ? images.getTotalElements() : images.getTotalElements()
+        );
+    }
+    
+    /**
      * Delete file
      */
     public void deleteFile(Long fileId) {
@@ -256,9 +311,16 @@ public class FileManagementService extends BaseService {
         FileMetadata fileMetadata = fileMetadataRepository.findById(fileId)
                 .orElseThrow(() -> new ResourceNotFoundException("File not found with ID: " + fileId));
         
-        // Check permissions
-        User currentUser = getCurrentUser();
-        if (!fileMetadata.getUploadedBy().getId().equals(currentUser.getId())) {
+        // Check permissions - owner or admin can update
+        User currentUser = SecurityHelper.getCurrentUser();
+        if (currentUser == null) {
+            throw new BusinessValidationException("Authentication required to update file");
+        }
+        
+        boolean isOwner = fileMetadata.getUploadedBy().getId().equals(currentUser.getId());
+        boolean isAdmin = SecurityHelper.isAdmin(currentUser);
+        
+        if (!isOwner && !isAdmin) {
             throw new BusinessValidationException("You can only update your own files");
         }
         
@@ -271,6 +333,9 @@ public class FileManagementService extends BaseService {
         }
         
         fileMetadata = fileMetadataRepository.save(fileMetadata);
+        
+        log.info("File metadata updated by {} (owner: {}, admin: {}): fileId={}, isPublic={}", 
+                currentUser.getUsername(), isOwner, isAdmin, fileId, isPublic);
         
         return convertToDTO(fileMetadata);
     }
@@ -350,11 +415,24 @@ public class FileManagementService extends BaseService {
     }
     
     private boolean canAccessFile(FileMetadata fileMetadata) {
-        User currentUser = getCurrentUser();
-        
-        // Public files are accessible to everyone
+        // Public files are accessible to everyone (including unauthenticated users)
         if (Boolean.TRUE.equals(fileMetadata.getIsPublic())) {
             return true;
+        }
+        
+        // Try to get current user (may be null if not authenticated)
+        User currentUser = null;
+        try {
+            currentUser = SecurityHelper.getCurrentUser();
+        } catch (Exception e) {
+            // No authenticated user - only public files are accessible
+            log.debug("No authenticated user for file access check: {}", fileMetadata.getStoredFilename());
+        }
+        
+        // If no authenticated user, only public files are accessible
+        if (currentUser == null) {
+            log.debug("Access denied: File {} is not public and no user is authenticated", fileMetadata.getStoredFilename());
+            return false;
         }
         
         // File owner can always access
@@ -369,6 +447,8 @@ public class FileManagementService extends BaseService {
         
         // TODO: Add entity-specific access rules (e.g., participants in service request can access files)
         
+        log.debug("Access denied: User {} does not have permission to access file {}", 
+                currentUser.getUsername(), fileMetadata.getStoredFilename());
         return false;
     }
     

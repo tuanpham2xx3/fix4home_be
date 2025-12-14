@@ -33,8 +33,10 @@ public class LocalFileStorageService implements FileStorageService {
         
         try {
             Files.createDirectories(this.fileStorageLocation);
-            log.info("File storage directory created: {}", this.fileStorageLocation);
+            log.info("File storage directory initialized: {}", this.fileStorageLocation);
+            log.info("File storage directory exists: {}", Files.exists(this.fileStorageLocation));
         } catch (Exception ex) {
+            log.error("Failed to create file storage directory: {}", this.fileStorageLocation, ex);
             throw new FileStorageException("Could not create the directory where the uploaded files will be stored.", ex);
         }
     }
@@ -80,14 +82,27 @@ public class LocalFileStorageService implements FileStorageService {
     public Resource loadFileAsResource(String filename) throws IOException {
         try {
             Path filePath = this.fileStorageLocation.resolve(filename).normalize();
+            log.debug("Loading file - filename: {}, storage location: {}, resolved path: {}", 
+                    filename, this.fileStorageLocation, filePath);
+            
+            // Security check: ensure the resolved path is within the storage location
+            if (!filePath.startsWith(this.fileStorageLocation)) {
+                log.error("Security violation: Attempted to access file outside storage directory: {}", filePath);
+                throw new FileStorageException("Access denied: Invalid file path");
+            }
+            
             Resource resource = new UrlResource(filePath.toUri());
             
             if (resource.exists()) {
+                log.debug("File found: {}", filePath);
                 return resource;
             } else {
-                throw new FileStorageException("File not found " + filename);
+                log.error("File not found - filename: {}, resolved path: {}, exists: {}", 
+                        filename, filePath, Files.exists(filePath));
+                throw new FileStorageException("File not found: " + filename + " (resolved to: " + filePath + ")");
             }
         } catch (MalformedURLException ex) {
+            log.error("Malformed URL for file: {}", filename, ex);
             throw new FileStorageException("File not found " + filename, ex);
         }
     }

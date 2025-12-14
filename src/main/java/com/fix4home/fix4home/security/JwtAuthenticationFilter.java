@@ -31,21 +31,47 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                   @NonNull HttpServletResponse response, 
                                   @NonNull FilterChain filterChain) throws ServletException, IOException {
         
+        // Debug logging for multipart requests
+        String contentType = request.getContentType();
+        String authHeader = request.getHeader("Authorization");
+        boolean isMultipart = contentType != null && contentType.contains("multipart");
+        
+        log.debug("🔍 [SECURITY] Request: {} {}", request.getMethod(), request.getRequestURI());
+        log.debug("🔍 [SECURITY] Content-Type: {}", contentType);
+        log.debug("🔍 [SECURITY] Authorization header: {}", authHeader != null ? "EXISTS" : "MISSING");
+        if (isMultipart) {
+            log.info("🔍 [SECURITY] Multipart request detected - checking authentication");
+        }
+        
         try {
             String jwt = getJwtFromRequest(request);
             
-            if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
-                String username = tokenProvider.getUsernameFromToken(jwt);
+            if (StringUtils.hasText(jwt)) {
+                log.debug("🔍 [SECURITY] JWT token extracted: {}...", jwt.length() > 20 ? jwt.substring(0, 20) : jwt);
                 
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                UsernamePasswordAuthenticationToken authentication = 
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                if (tokenProvider.validateToken(jwt)) {
+                    String username = tokenProvider.getUsernameFromToken(jwt);
+                    log.debug("🔍 [SECURITY] Token validated for user: {}", username);
+                    
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                    UsernamePasswordAuthenticationToken authentication = 
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    log.debug("🔍 [SECURITY] Authentication set in security context for user: {}", username);
+                } else {
+                    log.warn("⚠️ [SECURITY] Invalid JWT token");
+                }
+            } else {
+                if (isMultipart) {
+                    log.warn("⚠️ [SECURITY] Multipart request without Authorization header");
+                } else {
+                    log.debug("🔍 [SECURITY] No JWT token in request");
+                }
             }
         } catch (Exception ex) {
-            log.error("Could not set user authentication in security context", ex);
+            log.error("❌ [SECURITY] Could not set user authentication in security context", ex);
         }
         
         filterChain.doFilter(request, response);

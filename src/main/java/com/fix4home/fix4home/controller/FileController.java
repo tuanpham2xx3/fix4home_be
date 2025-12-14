@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.fix4home.fix4home.security.SecurityHelper;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 @RestController
@@ -81,34 +82,90 @@ public class FileController {
     
     // ==================== FILE DOWNLOAD ENDPOINTS ====================
     
-    @GetMapping("/download/{filename:.+}")
-    @Operation(summary = "Download file", description = "Download a file by its stored filename")
-    public ResponseEntity<Resource> downloadFile(
-            @Parameter(description = "Stored filename") @PathVariable String filename) {
-        
-        log.info("GET /api/v1/files/download/{} - Downloading file", filename);
-        
-        Resource resource = fileManagementService.downloadFile(filename);
-        
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
-                .body(resource);
+    @GetMapping("/download/**")
+    @Operation(summary = "Download file", description = "Download a file by its stored filename (supports subdirectories)")
+    public ResponseEntity<Resource> downloadFile(HttpServletRequest request) {
+        try {
+            // Extract filename from request path
+            String requestPath = request.getRequestURI();
+            log.debug("Request URI: {}", requestPath);
+            
+            int downloadIndex = requestPath.indexOf("/download/");
+            if (downloadIndex == -1) {
+                throw new IllegalArgumentException("Invalid download path: " + requestPath);
+            }
+            String filename = requestPath.substring(downloadIndex + "/download/".length());
+            
+            // URL decode the filename
+            try {
+                filename = java.net.URLDecoder.decode(filename, "UTF-8");
+            } catch (java.io.UnsupportedEncodingException e) {
+                log.warn("Failed to decode filename: {}", filename);
+            }
+            
+            log.info("GET /api/v1/files/download/{} - Downloading file", filename);
+            
+            // Get file metadata to retrieve content type
+            FileMetadataDTO fileMetadata = fileManagementService.getFileMetadataByFilename(filename);
+            Resource resource = fileManagementService.downloadFile(filename);
+            
+            // Use content type from metadata
+            MediaType mediaType = fileMetadata.getContentType() != null 
+                ? MediaType.parseMediaType(fileMetadata.getContentType()) 
+                : MediaType.APPLICATION_OCTET_STREAM;
+            
+            return ResponseEntity.ok()
+                    .contentType(mediaType)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileMetadata.getOriginalFilename() + "\"")
+                    .header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
+                    .body(resource);
+        } catch (Exception e) {
+            log.error("Error downloading file: {}", e.getMessage(), e);
+            throw e;
+        }
     }
     
-    @GetMapping("/view/{filename:.+}")
-    @Operation(summary = "View file", description = "View a file in browser (for images, PDFs, etc.)")
-    public ResponseEntity<Resource> viewFile(
-            @Parameter(description = "Stored filename") @PathVariable String filename) {
-        
-        log.info("GET /api/v1/files/view/{} - Viewing file", filename);
-        
-        Resource resource = fileManagementService.downloadFile(filename);
-        
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
-                .body(resource);
+    @GetMapping("/view/**")
+    @Operation(summary = "View file", description = "View a file in browser (for images, PDFs, etc.) - supports subdirectories")
+    public ResponseEntity<Resource> viewFile(HttpServletRequest request) {
+        try {
+            // Extract filename from request path
+            String requestPath = request.getRequestURI();
+            log.debug("Request URI: {}", requestPath);
+            
+            int viewIndex = requestPath.indexOf("/view/");
+            if (viewIndex == -1) {
+                throw new IllegalArgumentException("Invalid view path: " + requestPath);
+            }
+            String filename = requestPath.substring(viewIndex + "/view/".length());
+            
+            // URL decode the filename
+            try {
+                filename = java.net.URLDecoder.decode(filename, "UTF-8");
+            } catch (java.io.UnsupportedEncodingException e) {
+                log.warn("Failed to decode filename: {}", filename);
+            }
+            
+            log.info("GET /api/v1/files/view/{} - Viewing file", filename);
+            
+            // Get file metadata to retrieve content type
+            FileMetadataDTO fileMetadata = fileManagementService.getFileMetadataByFilename(filename);
+            Resource resource = fileManagementService.downloadFile(filename);
+            
+            // Use content type from metadata
+            MediaType mediaType = fileMetadata.getContentType() != null 
+                ? MediaType.parseMediaType(fileMetadata.getContentType()) 
+                : MediaType.APPLICATION_OCTET_STREAM;
+            
+            return ResponseEntity.ok()
+                    .contentType(mediaType)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileMetadata.getOriginalFilename() + "\"")
+                    .header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
+                    .body(resource);
+        } catch (Exception e) {
+            log.error("Error viewing file: {}", e.getMessage(), e);
+            throw e;
+        }
     }
     
     // ==================== FILE METADATA ENDPOINTS ====================

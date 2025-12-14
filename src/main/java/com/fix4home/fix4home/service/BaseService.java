@@ -26,9 +26,17 @@ public abstract class BaseService {
 
     /**
      * Get current authenticated user
+     * @throws UserNotFoundException if user is not authenticated or not found
      */
     protected User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        // Check if authentication exists and is not anonymous
+        if (authentication == null || !authentication.isAuthenticated() || 
+            "anonymousUser".equals(authentication.getName())) {
+            throw UserNotFoundException.currentUserNotFound();
+        }
+        
         String username = authentication.getName();
         
         return userRepository.findByUsername(username)

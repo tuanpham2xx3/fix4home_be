@@ -119,6 +119,12 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/files/admin/**").hasRole("ADMIN") // Admin file management
                 .requestMatchers("/api/v1/files/**").authenticated() // Other file operations require auth
                 
+                // Image Management endpoints
+                .requestMatchers(HttpMethod.GET, "/api/v1/images").permitAll() // Public can view images list (filtered by isPublic)
+                .requestMatchers(HttpMethod.GET, "/api/v1/images/{id}").permitAll() // Public can view image details (access controlled in service)
+                .requestMatchers(HttpMethod.POST, "/api/v1/images/upload").hasRole("ADMIN") // Image upload requires ADMIN role
+                .requestMatchers("/api/v1/images/**").authenticated() // Other image operations require auth
+                
                 // Chat endpoints - authenticated users only (role-based security in controller)
                 .requestMatchers("/api/v1/chat/**").authenticated()
                 
@@ -167,7 +173,8 @@ public class SecurityConfig {
         
         // Allow only specific origins
         configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000",  // Dev frontend
+            "http://localhost:3000",  // Dev frontend (React default)
+            "http://localhost:8500",  // Dev frontend (Vite admin web)
             "https://fix4home.com"    // Production frontend
         ));
         
@@ -176,12 +183,19 @@ public class SecurityConfig {
             "GET", "POST", "PUT", "DELETE", "OPTIONS"
         ));
         
-        // Allow specific headers
+        // Allow specific headers (including all headers for multipart requests)
+        // Note: For multipart/form-data, we need to allow all headers
+        // Setting comprehensive list of headers for multipart compatibility
         configuration.setAllowedHeaders(Arrays.asList(
             "Authorization",
             "Content-Type",
             "X-Device-Id",
-            "X-Refresh-Token"
+            "X-Refresh-Token",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+            "Cache-Control",
+            "Pragma"
         ));
         
         // Allow credentials (cookies)
