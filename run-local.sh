@@ -1,38 +1,89 @@
 #!/bin/bash
 
 # Script to run Fix4Home Backend locally (outside Docker)
-# Prerequisites: MySQL and Redis must be running in Docker
+# Prerequisites: MySQL, Redis, and Email Service must be running in Docker
 
 echo "=========================================="
 echo "Fix4Home Backend - Local Development"
 echo "=========================================="
 echo ""
 
-# Check if MySQL is running
-echo "Checking MySQL connection..."
-if ! docker compose ps mysql | grep -q "Up"; then
-    echo "❌ MySQL container is not running!"
-    echo "Please start MySQL with: docker compose up -d mysql"
-    exit 1
+# Check if MySQL is running in Docker on port 3307
+echo "Checking MySQL connection (Docker)..."
+if command -v nc &> /dev/null; then
+    if nc -z localhost 3307 2>/dev/null; then
+        echo "✅ MySQL is accessible on localhost:3307 (Docker)"
+    else
+        echo "⚠️  Cannot connect to MySQL on localhost:3307"
+        echo "   Please ensure MySQL container is running in Docker"
+        echo "   Start with: docker compose up -d mysql"
+        echo ""
+        echo "   You can continue anyway, but the app may fail to start..."
+        echo ""
+    fi
+elif command -v timeout &> /dev/null; then
+    if timeout 1 bash -c "cat < /dev/null > /dev/tcp/localhost/3307" 2>/dev/null; then
+        echo "✅ MySQL is accessible on localhost:3307 (Docker)"
+    else
+        echo "⚠️  Cannot connect to MySQL on localhost:3307"
+        echo "   Please ensure MySQL container is running in Docker"
+        echo "   Start with: docker compose up -d mysql"
+        echo ""
+        echo "   You can continue anyway, but the app may fail to start..."
+        echo ""
+    fi
+else
+    echo "⚠️  Cannot check MySQL connection (nc or timeout command not available)"
+    echo "   Please ensure MySQL container is running on localhost:3307"
+    echo ""
 fi
-echo "✅ MySQL is running on localhost:3307"
 
-# Check if Redis is running
-echo "Checking Redis connection..."
-if ! docker compose ps redis | grep -q "Up"; then
-    echo "❌ Redis container is not running!"
-    echo "Please start Redis with: docker compose up -d redis"
-    exit 1
+# Check if Redis is running in Docker on port 6379
+echo "Checking Redis connection (Docker)..."
+if command -v nc &> /dev/null; then
+    if nc -z localhost 6379 2>/dev/null; then
+        echo "✅ Redis is accessible on localhost:6379 (Docker)"
+    else
+        echo "⚠️  Cannot connect to Redis on localhost:6379"
+        echo "   Please ensure Redis container is running in Docker"
+        echo "   Start with: docker compose up -d redis"
+        echo ""
+        echo "   You can continue anyway, but caching features may not work..."
+        echo ""
+    fi
+elif command -v timeout &> /dev/null; then
+    if timeout 1 bash -c "cat < /dev/null > /dev/tcp/localhost/6379" 2>/dev/null; then
+        echo "✅ Redis is accessible on localhost:6379 (Docker)"
+    else
+        echo "⚠️  Cannot connect to Redis on localhost:6379"
+        echo "   Please ensure Redis container is running in Docker"
+        echo "   Start with: docker compose up -d redis"
+        echo ""
+        echo "   You can continue anyway, but caching features may not work..."
+        echo ""
+    fi
+else
+    echo "⚠️  Cannot check Redis connection (nc or timeout command not available)"
+    echo "   Please ensure Redis container is running on localhost:6379"
+    echo ""
 fi
-echo "✅ Redis is running on localhost:6379"
 
 # Check if email service is running (optional)
-echo "Checking Email Service..."
-if docker compose ps email-service | grep -q "Up"; then
-    echo "✅ Email Service is running on localhost:8200"
-else
-    echo "⚠️  Email Service is not running (optional)"
-    echo "   Start with: docker compose up -d email-service"
+echo "Checking Email Service (Docker)..."
+if command -v nc &> /dev/null; then
+    if nc -z localhost 8200 2>/dev/null; then
+        echo "✅ Email Service is accessible on localhost:8200 (Docker)"
+    else
+        echo "⚠️  Email Service is not running (optional)"
+        echo "   Start with: docker compose up -d email-service"
+    fi
+elif command -v timeout &> /dev/null; then
+    if timeout 1 bash -c "cat < /dev/null > /dev/tcp/localhost/8200" 2>/dev/null; then
+        echo "✅ Email Service is accessible on localhost:8200 (Docker)"
+    else
+        echo "⚠️  Email Service is not running (optional)"
+        echo "   Start with: docker compose up -d email-service"
+    fi
 fi
 
 echo ""

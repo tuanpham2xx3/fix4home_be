@@ -525,6 +525,8 @@ public class EmailVerificationService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("email", email);
             requestBody.put("action", action);
+            requestBody.put("baseUrl", frontendBaseUrl);
+            requestBody.put("system", systemName);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 

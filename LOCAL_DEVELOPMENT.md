@@ -1,6 +1,6 @@
 # Local Development Guide
 
-Hướng dẫn chạy Fix4Home Backend ở local (ngoài Docker) để tiện debug.
+Hướng dẫn chạy Fix4Home Backend ở local (ngoài Docker) để tiện debug, trong khi MySQL, Redis và Email Service vẫn chạy trên Docker.
 
 ## Yêu cầu
 
@@ -29,12 +29,18 @@ Kiểm tra services đang chạy:
 docker compose ps
 ```
 
+Bạn sẽ thấy các containers:
+- `fix4home-mysql` - MySQL trên port 3307
+- `fix4home-redis` - Redis trên port 6379
+- `fix4home-email-service` - Email Service trên port 8200
+
 ### 2. Chạy Backend Application
 
 #### Cách 1: Sử dụng script (Khuyến nghị)
 
 **Linux/Mac:**
 ```bash
+chmod +x run-local.sh
 ./run-local.sh
 ```
 
@@ -66,18 +72,18 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 File cấu hình cho local development: `src/main/resources/application-local.properties`
 
 ### Kết nối Database
-- MySQL: `localhost:3307` (port được map từ Docker)
+- MySQL: `localhost:3307` (port được map từ Docker container)
 - Username: `fix4home`
 - Password: `pass123`
 - Database: `fix4home_db`
 
 ### Kết nối Redis
 - Host: `localhost`
-- Port: `6379`
+- Port: `6379` (port được map từ Docker container)
 - No password
 
 ### Email Service
-- URL: `http://localhost:8200`
+- URL: `http://localhost:8200` (port được map từ Docker container)
 - API Key: `fix4home_prod_123abc456def789`
 
 ## Debugging
@@ -135,26 +141,30 @@ docker compose up -d redis
 Port 8100 is already in use
 ```
 **Giải pháp:** 
-- Dừng app container: `docker compose stop app`
-- Hoặc đổi port trong `application-local.properties`: `server.port=8101`
+- Tìm process đang sử dụng port: `netstat -ano | findstr 8100` (Windows) hoặc `lsof -i :8100` (Linux/Mac)
+- Dừng process đó hoặc đổi port trong `application-local.properties`: `server.port=8101`
 
 ### Flyway migration errors
-Nếu gặp lỗi migration, có thể tắt Flyway trong local profile:
-```properties
-spring.flyway.enabled=false
-```
+Nếu gặp lỗi migration:
+- Kiểm tra database đã được tạo chưa
+- Kiểm tra user có quyền tạo bảng không
+- Có thể tắt Flyway tạm thời trong `application-local.properties`: `spring.flyway.enabled=false`
+- Hoặc chạy migrations thủ công từ thư mục `src/main/resources/db/migration`
+
 
 ## Lợi ích chạy local
 
 1. ✅ **Debug nhanh hơn** - Không cần rebuild Docker image
-2. ✅ **Hot reload** - Code thay đổi được reload ngay
+2. ✅ **Hot reload** - Code thay đổi được reload ngay với Spring Boot DevTools
 3. ✅ **Breakpoints** - Debug dễ dàng với IDE
 4. ✅ **Logs rõ ràng** - Xem logs trực tiếp trong console
-5. ✅ **Performance** - Không bị overhead của Docker
+5. ✅ **Performance tốt hơn** - Không bị overhead của Docker cho ứng dụng
+6. ✅ **Dễ quản lý database** - Truy cập MySQL qua port 3307 với các tool như MySQL Workbench, phpMyAdmin
 
 ## Lưu ý
 
-- Đảm bảo MySQL và Redis luôn chạy trong Docker
+- Đảm bảo MySQL, Redis và Email Service luôn chạy trong Docker trước khi start ứng dụng
 - File uploads sẽ được lưu trong thư mục `uploads/` (đã được thêm vào `.gitignore`)
 - Logs sẽ hiển thị trực tiếp trong console với level DEBUG
+- Flyway sẽ tự động chạy migrations khi ứng dụng khởi động
 
