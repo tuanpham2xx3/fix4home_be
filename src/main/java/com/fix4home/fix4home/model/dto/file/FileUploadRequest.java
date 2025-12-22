@@ -26,5 +26,5 @@ public class FileUploadRequest {
     
     @Schema(description = "Whether file should be publicly accessible", example = "false")
     @Builder.Default
-    private Boolean isPublic = false;
+    private Boolean isPublic = true;
 }

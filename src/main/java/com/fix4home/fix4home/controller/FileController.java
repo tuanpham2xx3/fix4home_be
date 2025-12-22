@@ -47,7 +47,7 @@ public class FileController {
             @Parameter(description = "Entity type", example = "SERVICE_REQUEST") @RequestParam(required = false) String entityType,
             @Parameter(description = "Entity ID", example = "123") @RequestParam(required = false) Long entityId,
             @Parameter(description = "File description", example = "Before repair photo") @RequestParam(required = false) String description,
-            @Parameter(description = "Make files public", example = "false") @RequestParam(defaultValue = "false") Boolean isPublic) {
+            @Parameter(description = "Make files public", example = "true") @RequestParam(defaultValue = "true") Boolean isPublic) {
         
         log.info("POST /api/v1/files/upload - Uploading {} files", files.length);
         

@@ -62,7 +62,7 @@ public class FileMetadata {
     
     @Column(name = "is_public")
     @Builder.Default
-    private Boolean isPublic = false;
+    private Boolean isPublic = true;
     
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
