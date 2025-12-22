@@ -6,6 +6,8 @@ import com.fix4home.fix4home.model.dto.servicerequest.ServiceRequestSummaryDTO;
 import com.fix4home.fix4home.model.entity.*;
 import com.fix4home.fix4home.model.enums.*;
 import com.fix4home.fix4home.repository.*;
+import com.fix4home.fix4home.service.event.ComplaintCreatedEvent;
+import com.fix4home.fix4home.service.event.ComplaintStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -14,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -31,6 +34,7 @@ public class ComplaintService extends BaseService implements DTOConverter<Compla
     private final UserRepository userRepository;
     private final CustomerProfileRepository customerProfileRepository;
     private final TechnicianProfileRepository technicianProfileRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ==================== CUSTOMER & TECHNICIAN OPERATIONS ====================
 
@@ -61,7 +65,15 @@ public class ComplaintService extends BaseService implements DTOConverter<Compla
                 .build();
 
         Complaint savedComplaint = complaintRepository.save(complaint);
-        
+
+        // Publish complaint created event
+        eventPublisher.publishEvent(new ComplaintCreatedEvent(
+                savedComplaint.getId(),
+                savedComplaint.getServiceRequest().getId(),
+                savedComplaint.getComplainant().getId(),
+                savedComplaint.getAccused().getId()
+        ));
+
         // Update service request status to COMPLAINING
         updateServiceRequestToComplaining(serviceRequest);
         
@@ -167,6 +179,7 @@ public class ComplaintService extends BaseService implements DTOConverter<Compla
         validateRequired(request, "request");
         
         Complaint complaint = findComplaintById(id);
+        ComplaintStatus oldStatus = complaint.getStatus();
         User admin = getCurrentUser();
 
         // Validate can resolve
@@ -184,7 +197,14 @@ public class ComplaintService extends BaseService implements DTOConverter<Compla
         }
 
         Complaint savedComplaint = complaintRepository.save(complaint);
-        
+
+        // Publish complaint status changed event
+        eventPublisher.publishEvent(new ComplaintStatusChangedEvent(
+                savedComplaint.getId(),
+                oldStatus,
+                savedComplaint.getStatus()
+        ));
+
         // Update service request status to COMPLAITED
         updateServiceRequestToComplaited(complaint.getServiceRequest());
 

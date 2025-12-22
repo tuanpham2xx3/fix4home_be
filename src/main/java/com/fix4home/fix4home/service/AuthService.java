@@ -13,6 +13,7 @@ import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.CustomerProfileRepository;
 import com.fix4home.fix4home.repository.TechnicianProfileRepository;
 import com.fix4home.fix4home.repository.UserRepository;
+import com.fix4home.fix4home.service.event.PasswordChangedEvent;
 import com.fix4home.fix4home.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.security.SecureRandom;
 
@@ -45,6 +47,7 @@ public class AuthService extends BaseService {
     private final RefreshTokenService refreshTokenService;
     private final FileManagementService fileManagementService;
     private final ConversationService conversationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${admin.registration.key}")
     private String adminRegistrationKey;
@@ -369,6 +372,9 @@ public class AuthService extends BaseService {
 
         // Revoke all refresh tokens to log out all devices
         refreshTokenService.deleteByUserId(user.getId());
+
+        // Publish password changed event
+        eventPublisher.publishEvent(new PasswordChangedEvent(user.getId(), user.getUsername()));
 
         log.info("Password changed successfully for user: {}", user.getUsername());
     }

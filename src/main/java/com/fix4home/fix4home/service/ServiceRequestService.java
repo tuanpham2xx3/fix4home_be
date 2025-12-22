@@ -9,6 +9,9 @@ import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.model.enums.ServiceRequestStatus;
 import com.fix4home.fix4home.model.enums.UserStatus;
 import com.fix4home.fix4home.repository.*;
+import com.fix4home.fix4home.service.event.ServiceRequestCancelledEvent;
+import com.fix4home.fix4home.service.event.ServiceRequestCreatedEvent;
+import com.fix4home.fix4home.service.event.ServiceRequestStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -17,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -35,6 +39,7 @@ public class ServiceRequestService extends BaseService implements DTOConverter<S
     private final AddressRepository addressRepository;
     private final CustomerProfileRepository customerProfileRepository;
     private final TechnicianProfileRepository technicianProfileRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ==================== CUSTOMER OPERATIONS ====================
 
@@ -69,6 +74,16 @@ public class ServiceRequestService extends BaseService implements DTOConverter<S
                 .build();
 
         ServiceRequest savedRequest = serviceRequestRepository.save(serviceRequest);
+
+        // Publish domain event for notifications
+        eventPublisher.publishEvent(new ServiceRequestCreatedEvent(
+                savedRequest.getId(),
+                savedRequest.getCustomer().getId(),
+                savedRequest.getTechnician() != null ? savedRequest.getTechnician().getId() : null,
+                savedRequest.getService().getName(),
+                savedRequest.getAddress().getAddressLine()
+        ));
+
         return convertToDTO(savedRequest);
     }
 
@@ -111,8 +126,17 @@ public class ServiceRequestService extends BaseService implements DTOConverter<S
         // Business rule validation
         validateCanCancel(serviceRequest);
 
+        ServiceRequestStatus oldStatus = serviceRequest.getStatus();
         serviceRequest.setStatus(ServiceRequestStatus.CANCELLED);
         ServiceRequest savedRequest = serviceRequestRepository.save(serviceRequest);
+
+        // Publish domain event for notifications
+        eventPublisher.publishEvent(new ServiceRequestCancelledEvent(
+                savedRequest.getId(),
+                savedRequest.getCustomer().getId(),
+                savedRequest.getTechnician() != null ? savedRequest.getTechnician().getId() : null,
+                null // No explicit cancel reason in current API
+        ));
 
         return convertToDTO(savedRequest);
     }
@@ -214,8 +238,18 @@ public class ServiceRequestService extends BaseService implements DTOConverter<S
             throw InvalidServiceRequestStatusException.cannotStartWork(serviceRequest.getStatus());
         }
 
+        ServiceRequestStatus oldStatus = serviceRequest.getStatus();
         serviceRequest.setStatus(ServiceRequestStatus.IN_PROGRESS);
         ServiceRequest savedRequest = serviceRequestRepository.save(serviceRequest);
+
+        // Publish status changed event
+        eventPublisher.publishEvent(new ServiceRequestStatusChangedEvent(
+                savedRequest.getId(),
+                savedRequest.getCustomer().getId(),
+                savedRequest.getTechnician() != null ? savedRequest.getTechnician().getId() : null,
+                oldStatus,
+                savedRequest.getStatus()
+        ));
 
         return convertToDTO(savedRequest);
     }
@@ -239,8 +273,18 @@ public class ServiceRequestService extends BaseService implements DTOConverter<S
             throw InvalidServiceRequestStatusException.cannotComplete(serviceRequest.getStatus());
         }
 
+        ServiceRequestStatus oldStatus = serviceRequest.getStatus();
         serviceRequest.setStatus(ServiceRequestStatus.DONE);
         ServiceRequest savedRequest = serviceRequestRepository.save(serviceRequest);
+
+        // Publish status changed event
+        eventPublisher.publishEvent(new ServiceRequestStatusChangedEvent(
+                savedRequest.getId(),
+                savedRequest.getCustomer().getId(),
+                savedRequest.getTechnician() != null ? savedRequest.getTechnician().getId() : null,
+                oldStatus,
+                savedRequest.getStatus()
+        ));
 
         return convertToDTO(savedRequest);
     }
