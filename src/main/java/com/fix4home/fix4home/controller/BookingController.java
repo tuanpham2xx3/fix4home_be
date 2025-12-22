@@ -96,9 +96,59 @@ public class BookingController {
         log.info("Canceling booking with ID: {}", id);
         
         BookingDTO booking = bookingService.cancelBooking(id);
-        
+
         return ResponseEntity.ok(
                 ApiResponse.success("Booking cancelled successfully", booking));
+    }
+
+    // ==================== ADMIN APIS ====================
+
+    @GetMapping("/admin")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
+    @Operation(summary = "Admin - Get all bookings",
+               description = "Admin retrieves all bookings with optional status filter and pagination")
+    public ResponseEntity<ApiResponse<BookingListResponseDTO>> getAllBookingsForAdmin(
+            @Parameter(description = "Filter by status (PENDING, COMPLETED, CANCELLED)")
+            @RequestParam(required = false) BookingStatus status,
+            @Parameter(description = "Page number (0-based)")
+            @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size (limit)")
+            @RequestParam(required = false) Integer limit) {
+        log.info("Admin fetching bookings - status: {}, page: {}, limit: {}", status, page, limit);
+
+        BookingListResponseDTO bookings = bookingService.getAllBookings(status, page, limit);
+
+        return ResponseEntity.ok(
+                ApiResponse.success("Bookings retrieved successfully", bookings));
+    }
+
+    @GetMapping("/admin/{id}")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
+    @Operation(summary = "Admin - Get booking details",
+               description = "Admin gets detailed information about a specific booking")
+    public ResponseEntity<ApiResponse<BookingDTO>> getBookingByIdForAdmin(
+            @Parameter(description = "Booking ID") @PathVariable Long id) {
+        log.info("Admin fetching booking details for ID: {}", id);
+
+        BookingDTO booking = bookingService.getBookingByIdForAdmin(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.success("Booking details retrieved successfully", booking));
+    }
+
+    @PatchMapping("/admin/{id}/status")
+    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
+    @Operation(summary = "Admin - Update booking status",
+               description = "Admin updates the status of a booking")
+    public ResponseEntity<ApiResponse<BookingDTO>> updateBookingStatusByAdmin(
+            @Parameter(description = "Booking ID") @PathVariable Long id,
+            @Valid @RequestBody UpdateBookingStatusRequest request) {
+        log.info("Admin updating booking status for ID: {} to {}", id, request.getStatus());
+
+        BookingDTO booking = bookingService.updateBookingStatus(id, request.getStatus());
+
+        return ResponseEntity.ok(
+                ApiResponse.success("Booking status updated successfully", booking));
     }
 }
 

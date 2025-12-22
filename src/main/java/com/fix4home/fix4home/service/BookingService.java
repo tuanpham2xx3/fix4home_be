@@ -165,6 +165,74 @@ public class BookingService extends BaseService implements DTOConverter<Booking,
         return convertToDTO(savedBooking);
     }
 
+    // ==================== ADMIN OPERATIONS ====================
+
+    @Transactional(readOnly = true)
+    public BookingListResponseDTO getAllBookings(BookingStatus status, Integer page, Integer limit) {
+        logBusinessOperation("ADMIN_GET_ALL_BOOKINGS", "status=" + status, "page=" + page, "limit=" + limit);
+
+        requireRole(Role.ADMIN);
+
+        // Set defaults for pagination
+        int pageNumber = (page != null && page >= 0) ? page : 0;
+        int pageSize = (limit != null && limit > 0 && limit <= 100) ? limit : 10;
+
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("createdAt").descending());
+
+        Page<Booking> bookingPage;
+        if (status != null) {
+            bookingPage = bookingRepository.findByStatus(status, pageable);
+        } else {
+            bookingPage = bookingRepository.findAll(pageable);
+        }
+
+        List<BookingDTO> bookingDTOs = bookingPage.getContent().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+
+        return BookingListResponseDTO.builder()
+                .bookings(bookingDTOs)
+                .total(bookingPage.getTotalElements())
+                .page(pageNumber)
+                .limit(pageSize)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public BookingDTO getBookingByIdForAdmin(Long id) {
+        logBusinessOperation("ADMIN_GET_BOOKING_BY_ID", "id=" + id);
+
+        validatePositiveId(id, "id");
+        requireRole(Role.ADMIN);
+
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> new BookingNotFoundException(id));
+
+        return convertToDTO(booking);
+    }
+
+    @Transactional
+    public BookingDTO updateBookingStatus(Long id, BookingStatus status) {
+        logBusinessOperation("ADMIN_UPDATE_BOOKING_STATUS", "id=" + id, "status=" + status);
+
+        validatePositiveId(id, "id");
+        validateRequired(status, "status");
+        requireRole(Role.ADMIN);
+
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> new BookingNotFoundException(id));
+
+        // Only allow status changes for PENDING bookings
+        if (booking.getStatus() != BookingStatus.PENDING) {
+            throw new IllegalStateException("Only bookings with PENDING status can be updated by admin. Current status: " + booking.getStatus());
+        }
+
+        booking.setStatus(status);
+        Booking savedBooking = bookingRepository.save(booking);
+
+        return convertToDTO(savedBooking);
+    }
+
     // ==================== PRIVATE HELPER METHODS ====================
 
     private Booking findBookingByIdAndUser(Long id, User user) {
