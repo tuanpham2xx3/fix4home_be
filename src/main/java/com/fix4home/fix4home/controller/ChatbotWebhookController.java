@@ -1,9 +1,12 @@
 package com.fix4home.fix4home.controller;
 
 import com.fix4home.fix4home.model.dto.chat.MessageDTO;
+import com.fix4home.fix4home.model.dto.chatbot.ChatbotSendRequest;
+import com.fix4home.fix4home.model.dto.chatbot.ChatbotSendResponse;
 import com.fix4home.fix4home.model.dto.chatbot.ChatbotWebhookRequest;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
 import com.fix4home.fix4home.model.entity.Message;
+import com.fix4home.fix4home.security.SecurityConstants;
 import com.fix4home.fix4home.service.ChatService;
 import com.fix4home.fix4home.service.ChatbotService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -66,6 +70,31 @@ public class ChatbotWebhookController {
         
         return ResponseEntity.ok(
                 ApiResponse.success("Chatbot response processed successfully", messageDTO));
+    }
+    
+    @PostMapping("/send")
+    @PreAuthorize(SecurityConstants.IS_AUTHENTICATED)
+    @Operation(summary = "Send message to chatbot via n8n webhook with session management", 
+               description = "Send message to n8n chatbot webhook with session limit (5 requests per session). " +
+                           "If session limit is exceeded, a new sessionId will be automatically created. " +
+                           "Message is saved to database and sent to n8n for processing.")
+    public ResponseEntity<ApiResponse<ChatbotSendResponse>> sendMessageToChatbot(
+            @Valid @RequestBody ChatbotSendRequest request) {
+        log.info("Sending message to chatbot for conversation: {} with sessionId: {}", 
+            request.getConversationId(), request.getSessionId());
+        
+        // Send message with session management (service will get current user internally)
+        ChatbotSendResponse response = chatbotService.sendMessageToN8nWithSession(
+            request.getConversationId(),
+            request.getSessionId(),
+            request.getMessage()
+        );
+        
+        log.info("Message sent successfully. MessageId: {}, SessionId: {}, NewSessionCreated: {}", 
+            response.getMessageId(), response.getSessionId(), response.getNewSessionCreated());
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Message sent to chatbot successfully", response));
     }
 }
 
