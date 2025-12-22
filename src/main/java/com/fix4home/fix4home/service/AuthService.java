@@ -44,6 +44,7 @@ public class AuthService extends BaseService {
     private final ActivationTokenService activationTokenService;
     private final RefreshTokenService refreshTokenService;
     private final FileManagementService fileManagementService;
+    private final ConversationService conversationService;
 
     @Value("${admin.registration.key}")
     private String adminRegistrationKey;
@@ -158,6 +159,16 @@ public class AuthService extends BaseService {
 
         // Generate token (note: user still needs to verify email before they can login)
         String token = tokenProvider.generateToken(savedUser);
+        
+        // Create chatbot conversation for new user (async, don't block registration)
+        try {
+            conversationService.createChatbotConversation(savedUser.getId());
+            log.info("Chatbot conversation created for user: {}", savedUser.getId());
+        } catch (Exception e) {
+            log.warn("Failed to create chatbot conversation for user {}: {}", 
+                savedUser.getId(), e.getMessage());
+            // Don't fail registration if chatbot conversation creation fails
+        }
 
         return buildAuthResponse(savedUser, token, request);
     }

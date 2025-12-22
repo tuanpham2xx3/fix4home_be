@@ -73,4 +73,22 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
             @Param("serviceRequestId") Long serviceRequestId,
             @Param("servicePostId") Long servicePostId,
             @Param("consultationId") Long consultationId);
+    
+    // Find conversation between two users by IDs (for free chat)
+    @Query("SELECT c FROM Conversation c WHERE " +
+           "((c.customer.id = :userId1 AND c.technician.id = :userId2) OR " +
+           " (c.customer.id = :userId2 AND c.technician.id = :userId1))")
+    Optional<Conversation> findByParticipants(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+    
+    // Check if conversation exists between two users by IDs
+    @Query("SELECT COUNT(c) > 0 FROM Conversation c WHERE " +
+           "((c.customer.id = :userId1 AND c.technician.id = :userId2) OR " +
+           " (c.customer.id = :userId2 AND c.technician.id = :userId1))")
+    boolean existsByParticipants(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+    
+    // Find chatbot conversation for a user
+    @Query("SELECT c FROM Conversation c WHERE " +
+           "(c.customer.id = :userId OR c.technician.id = :userId) AND " +
+           "c.conversationType = 'CHATBOT'")
+    Optional<Conversation> findChatbotConversationByUser(@Param("userId") Long userId);
 } 

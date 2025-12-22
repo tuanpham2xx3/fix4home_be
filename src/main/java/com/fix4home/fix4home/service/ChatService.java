@@ -36,6 +36,7 @@ public class ChatService extends BaseService {
     private final ConversationRepository conversationRepository;
     private final ConversationService conversationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ChatbotService chatbotService;
 
     // ==================== MESSAGE MANAGEMENT ====================
 
@@ -74,6 +75,12 @@ public class ChatService extends BaseService {
         
         // Convert to DTO for response and WebSocket broadcast
         MessageDTO messageDTO = convertMessageToDTO(savedMessage);
+        
+        // Check if this is a chatbot conversation and send to n8n
+        if (chatbotService.isChatbotConversation(conversation)) {
+            log.info("Detected chatbot conversation, sending message to n8n");
+            chatbotService.sendToN8n(savedMessage);
+        }
         
         // Send real-time message to participants
         broadcastMessageToParticipants(conversation, messageDTO);
@@ -183,7 +190,7 @@ public class ChatService extends BaseService {
 
     // ==================== REAL-TIME MESSAGING ====================
 
-    private void broadcastMessageToParticipants(Conversation conversation, MessageDTO messageDTO) {
+    public void broadcastMessageToParticipants(Conversation conversation, MessageDTO messageDTO) {
         // Send to customer
         String customerDestination = "/user/" + conversation.getCustomer().getUsername() + "/queue/messages";
         messagingTemplate.convertAndSend(customerDestination, messageDTO);
@@ -222,7 +229,7 @@ public class ChatService extends BaseService {
         }
     }
 
-    private MessageDTO convertMessageToDTO(Message message) {
+    public MessageDTO convertMessageToDTO(Message message) {
         MessageDTO.SenderDTO senderDTO = null;
         if (message.getSender() != null) {
             senderDTO = MessageDTO.SenderDTO.builder()

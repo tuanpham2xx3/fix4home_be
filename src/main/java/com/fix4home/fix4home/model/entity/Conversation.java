@@ -1,6 +1,7 @@
 package com.fix4home.fix4home.model.entity;
 
 import com.fix4home.fix4home.model.enums.ConversationStatus;
+import com.fix4home.fix4home.model.enums.ConversationType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -10,8 +11,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Conversation entity represents a chat session between a customer and technician
- * It can be linked to ServiceRequest, ServicePost, or Consultation for context
+ * Conversation entity represents a chat session between users
+ * It can be linked to ServiceRequest, ServicePost, or Consultation for business context
+ * Supports free chat and chatbot conversations
  */
 @Entity
 @Table(name = "conversations")
@@ -52,6 +54,11 @@ public class Conversation {
     @Builder.Default
     private ConversationStatus status = ConversationStatus.ACTIVE;
     
+    @Enumerated(EnumType.STRING)
+    @Column(name = "conversation_type", nullable = false)
+    @Builder.Default
+    private ConversationType conversationType = ConversationType.BUSINESS;
+    
     @Column(name = "last_message_at")
     private LocalDateTime lastMessageAt;
     
@@ -84,5 +91,17 @@ public class Conversation {
             return this.customer;
         }
         throw new IllegalArgumentException("User is not a participant in this conversation");
+    }
+    
+    public boolean isChatbotConversation() {
+        return this.conversationType == ConversationType.CHATBOT;
+    }
+    
+    public boolean isFreeConversation() {
+        return this.conversationType == ConversationType.FREE;
+    }
+    
+    public boolean isBusinessConversation() {
+        return this.conversationType == ConversationType.BUSINESS;
     }
 } 

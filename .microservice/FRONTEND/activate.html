@@ -132,7 +132,32 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:8100/api/v1';
+        // Auto-detect API URL based on current hostname
+        function getApiBaseUrl() {
+            const hostname = window.location.hostname;
+            const protocol = window.location.protocol;
+            
+            // Local development
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:8100/api/v1';
+            }
+            
+            // Staging/Production environment (iceteadev.site)
+            if (hostname.includes('iceteadev.site')) {
+                // Production API is api.iceteadev.site
+                return `${protocol}//api.iceteadev.site/api/v1`;
+            }
+            
+            // Production (fix4home.com)
+            if (hostname.includes('fix4home.com')) {
+                return 'https://api.fix4home.com/api/v1';
+            }
+            
+            // Default fallback
+            return 'http://localhost:8100/api/v1';
+        }
+        
+        const API_BASE_URL = getApiBaseUrl();
         
         // Get token from URL
         function getTokenFromURL() {

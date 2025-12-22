@@ -2,6 +2,7 @@ package com.fix4home.fix4home.controller;
 
 import com.fix4home.fix4home.model.dto.chat.ConversationDTO;
 import com.fix4home.fix4home.model.dto.chat.CreateConversationRequest;
+import com.fix4home.fix4home.model.dto.chat.CreateFreeConversationRequest;
 import com.fix4home.fix4home.model.dto.chat.MessageDTO;
 import com.fix4home.fix4home.model.dto.chat.MarkAsReadRequest;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
@@ -82,9 +83,9 @@ public class ChatController {
     }
 
     @PostMapping("/conversations")
-    @PreAuthorize(SecurityConstants.HAS_ADMIN_ROLE)
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_OR_TECHNICIAN_ROLE)
     @Operation(summary = "Create new conversation", 
-               description = "Create a new conversation (Admin only - typically triggered by system events)")
+               description = "Create a new conversation (for free chat or business context)")
     public ResponseEntity<ApiResponse<ConversationDTO>> createConversation(
             @Valid @RequestBody CreateConversationRequest request) {
         log.info("Creating new conversation between customer {} and technician {}", 
@@ -94,6 +95,54 @@ public class ChatController {
         
         return ResponseEntity.ok(
                 ApiResponse.success("Conversation created successfully", conversation));
+    }
+    
+    @PostMapping("/conversations/free")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_OR_TECHNICIAN_ROLE)
+    @Operation(summary = "Create free conversation", 
+               description = "Create a free chat conversation with another user")
+    public ResponseEntity<ApiResponse<ConversationDTO>> createFreeConversation(
+            @Valid @RequestBody CreateFreeConversationRequest request) {
+        log.info("Creating free conversation with user {}", request.getOtherUserId());
+        
+        ConversationDTO conversation = conversationService.createFreeConversation(request);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Free conversation created successfully", conversation));
+    }
+    
+    @GetMapping("/conversations/with/{userId}")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_OR_TECHNICIAN_ROLE)
+    @Operation(summary = "Get conversation with user", 
+               description = "Get existing conversation with a specific user, or null if not exists")
+    public ResponseEntity<ApiResponse<ConversationDTO>> getConversationWithUser(
+            @Parameter(description = "User ID") @PathVariable Long userId) {
+        log.info("Getting conversation with user {}", userId);
+        
+        java.util.Optional<ConversationDTO> conversation = 
+            conversationService.getExistingConversationWithUser(userId);
+        
+        if (conversation.isPresent()) {
+            return ResponseEntity.ok(
+                    ApiResponse.success("Conversation found", conversation.get()));
+        } else {
+            return ResponseEntity.ok(
+                    ApiResponse.success("No conversation found", null));
+        }
+    }
+    
+    @PostMapping("/conversations/find-or-create")
+    @PreAuthorize(SecurityConstants.HAS_CUSTOMER_OR_TECHNICIAN_ROLE)
+    @Operation(summary = "Find or create conversation", 
+               description = "Find existing conversation with user, or create new one if not exists")
+    public ResponseEntity<ApiResponse<ConversationDTO>> findOrCreateConversation(
+            @Parameter(description = "Other user ID") @RequestParam Long otherUserId) {
+        log.info("Finding or creating conversation with user {}", otherUserId);
+        
+        ConversationDTO conversation = conversationService.findOrCreateConversation(otherUserId);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Conversation retrieved or created successfully", conversation));
     }
 
     @PutMapping("/conversations/{id}/archive")

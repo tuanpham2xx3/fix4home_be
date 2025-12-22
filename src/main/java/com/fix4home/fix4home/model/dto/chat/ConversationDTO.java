@@ -1,6 +1,7 @@
 package com.fix4home.fix4home.model.dto.chat;
 
 import com.fix4home.fix4home.model.enums.ConversationStatus;
+import com.fix4home.fix4home.model.enums.ConversationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +21,7 @@ public class ConversationDTO {
     
     private Long id;
     private ConversationStatus status;
+    private ConversationType conversationType;
     private LocalDateTime lastMessageAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

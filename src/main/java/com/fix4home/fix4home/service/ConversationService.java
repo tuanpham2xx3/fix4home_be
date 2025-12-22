@@ -5,8 +5,10 @@ import com.fix4home.fix4home.exception.ResourceAlreadyExistsException;
 import com.fix4home.fix4home.exception.BusinessValidationException;
 import com.fix4home.fix4home.model.dto.chat.ConversationDTO;
 import com.fix4home.fix4home.model.dto.chat.CreateConversationRequest;
+import com.fix4home.fix4home.model.dto.chat.CreateFreeConversationRequest;
 import com.fix4home.fix4home.model.entity.*;
 import com.fix4home.fix4home.model.enums.ConversationStatus;
+import com.fix4home.fix4home.model.enums.ConversationType;
 import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -50,12 +52,15 @@ public class ConversationService extends BaseService {
         User customer = findUserById(request.getCustomerId());
         User technician = findUserById(request.getTechnicianId());
         
-        // Validate roles
-        validateUserRole(customer, Role.CUSTOMER);
-        validateUserRole(technician, Role.TECHNICIAN);
+        // Validate roles only for BUSINESS conversations (backward compatibility)
+        if (request.getConversationType() == ConversationType.BUSINESS) {
+            validateUserRole(customer, Role.CUSTOMER);
+            validateUserRole(technician, Role.TECHNICIAN);
+        }
         
         // Check if conversation already exists for the business context
-        if (conversationAlreadyExists(customer, technician, request)) {
+        if (request.getConversationType() == ConversationType.BUSINESS && 
+            conversationAlreadyExists(customer, technician, request)) {
             throw new ResourceAlreadyExistsException("Conversation already exists for this context");
         }
         
@@ -63,20 +68,24 @@ public class ConversationService extends BaseService {
         Conversation.ConversationBuilder conversationBuilder = Conversation.builder()
                 .customer(customer)
                 .technician(technician)
-                .status(ConversationStatus.ACTIVE);
+                .status(ConversationStatus.ACTIVE)
+                .conversationType(request.getConversationType() != null ? 
+                    request.getConversationType() : ConversationType.BUSINESS);
         
-        // Set business context
-        if (request.getServiceRequestId() != null) {
-            ServiceRequest serviceRequest = findServiceRequestById(request.getServiceRequestId());
-            conversationBuilder.serviceRequest(serviceRequest);
-        }
-        if (request.getServicePostId() != null) {
-            ServicePost servicePost = findServicePostById(request.getServicePostId());
-            conversationBuilder.servicePost(servicePost);
-        }
-        if (request.getConsultationId() != null) {
-            Consultation consultation = findConsultationById(request.getConsultationId());
-            conversationBuilder.consultation(consultation);
+        // Set business context only for BUSINESS type
+        if (request.getConversationType() == ConversationType.BUSINESS) {
+            if (request.getServiceRequestId() != null) {
+                ServiceRequest serviceRequest = findServiceRequestById(request.getServiceRequestId());
+                conversationBuilder.serviceRequest(serviceRequest);
+            }
+            if (request.getServicePostId() != null) {
+                ServicePost servicePost = findServicePostById(request.getServicePostId());
+                conversationBuilder.servicePost(servicePost);
+            }
+            if (request.getConsultationId() != null) {
+                Consultation consultation = findConsultationById(request.getConsultationId());
+                conversationBuilder.consultation(consultation);
+            }
         }
         
         Conversation conversation = conversationRepository.save(conversationBuilder.build());
@@ -88,6 +97,125 @@ public class ConversationService extends BaseService {
         
         log.info("Conversation created with ID: {}", conversation.getId());
         return convertConversationToDTO(conversation);
+    }
+    
+    @Transactional
+    public ConversationDTO createFreeConversation(CreateFreeConversationRequest request) {
+        logBusinessOperation("CREATE_FREE_CONVERSATION", "otherUserId=" + request.getOtherUserId());
+        
+        validateRequired(request, "request");
+        validateRequired(request.getOtherUserId(), "otherUserId");
+        
+        User currentUser = getCurrentUser();
+        User otherUser = findUserById(request.getOtherUserId());
+        
+        // Prevent self-chat
+        if (currentUser.getId().equals(otherUser.getId())) {
+            throw new BusinessValidationException("Cannot create conversation with yourself");
+        }
+        
+        // Check if conversation already exists
+        Optional<Conversation> existing = conversationRepository.findByParticipants(
+            currentUser.getId(), otherUser.getId());
+        
+        if (existing.isPresent()) {
+            log.info("Conversation already exists between users {} and {}", 
+                currentUser.getId(), otherUser.getId());
+            return convertConversationToDTO(existing.get());
+        }
+        
+        // Determine customer and technician roles (for schema compatibility)
+        // For free chat, we use customer/technician fields but allow any roles
+        User participant1 = currentUser;
+        User participant2 = otherUser;
+        
+        // Create conversation
+        Conversation conversation = Conversation.builder()
+                .customer(participant1)
+                .technician(participant2)
+                .status(ConversationStatus.ACTIVE)
+                .conversationType(ConversationType.FREE)
+                .build();
+        
+        Conversation savedConversation = conversationRepository.save(conversation);
+        
+        // Send initial message if provided
+        if (request.getInitialMessage() != null && !request.getInitialMessage().trim().isEmpty()) {
+            // This will be handled by ChatService
+        }
+        
+        log.info("Free conversation created with ID: {}", savedConversation.getId());
+        return convertConversationToDTO(savedConversation);
+    }
+    
+    @Transactional
+    public ConversationDTO findOrCreateConversation(Long otherUserId) {
+        logBusinessOperation("FIND_OR_CREATE_CONVERSATION", "otherUserId=" + otherUserId);
+        
+        User currentUser = getCurrentUser();
+        
+        // Check if conversation exists
+        Optional<Conversation> existing = conversationRepository.findByParticipants(
+            currentUser.getId(), otherUserId);
+        
+        if (existing.isPresent()) {
+            return convertConversationToDTO(existing.get());
+        }
+        
+        // Create new conversation
+        CreateFreeConversationRequest request = CreateFreeConversationRequest.builder()
+                .otherUserId(otherUserId)
+                .build();
+        
+        return createFreeConversation(request);
+    }
+    
+    @Transactional(readOnly = true)
+    public Optional<ConversationDTO> getExistingConversation(Long userId1, Long userId2) {
+        Optional<Conversation> conversation = conversationRepository.findByParticipants(userId1, userId2);
+        return conversation.map(this::convertConversationToDTO);
+    }
+    
+    @Transactional(readOnly = true)
+    public Optional<ConversationDTO> getExistingConversationWithUser(Long otherUserId) {
+        User currentUser = getCurrentUser();
+        Optional<Conversation> conversation = conversationRepository.findByParticipants(
+            currentUser.getId(), otherUserId);
+        return conversation.map(this::convertConversationToDTO);
+    }
+    
+    @Transactional
+    public ConversationDTO createChatbotConversation(Long userId) {
+        logBusinessOperation("CREATE_CHATBOT_CONVERSATION", "userId=" + userId);
+        
+        User user = findUserById(userId);
+        
+        // Find chatbot user
+        User chatbotUser = userRepository.findByUsernameAndRole("chatbot_support", Role.ADMIN)
+                .orElseThrow(() -> new UserNotFoundException("Chatbot user not found"));
+        
+        // Check if conversation already exists
+        Optional<Conversation> existing = conversationRepository.findChatbotConversationByUser(userId);
+        
+        if (existing.isPresent()) {
+            log.info("Chatbot conversation already exists for user {}", userId);
+            return convertConversationToDTO(existing.get());
+        }
+        
+        // Create conversation with chatbot
+        Conversation conversation = Conversation.builder()
+                .customer(user)
+                .technician(chatbotUser)
+                .status(ConversationStatus.ACTIVE)
+                .conversationType(ConversationType.CHATBOT)
+                .build();
+        
+        Conversation savedConversation = conversationRepository.save(conversation);
+        
+        log.info("Chatbot conversation created with ID: {} for user {}", 
+            savedConversation.getId(), userId);
+        
+        return convertConversationToDTO(savedConversation);
     }
 
     @Transactional(readOnly = true)
@@ -258,9 +386,10 @@ public class ConversationService extends BaseService {
                     .build();
         }
         
-        return ConversationDTO.builder()
+        ConversationDTO.ConversationDTOBuilder dtoBuilder = ConversationDTO.builder()
                 .id(conversation.getId())
                 .status(conversation.getStatus())
+                .conversationType(conversation.getConversationType())
                 .lastMessageAt(conversation.getLastMessageAt())
                 .createdAt(conversation.getCreatedAt())
                 .updatedAt(conversation.getUpdatedAt())
@@ -270,8 +399,9 @@ public class ConversationService extends BaseService {
                 .customer(convertUserToParticipantDTO(conversation.getCustomer()))
                 .technician(convertUserToParticipantDTO(conversation.getTechnician()))
                 .lastMessage(lastMessageDTO)
-                .unreadCount((int) unreadCount)
-                .build();
+                .unreadCount((int) unreadCount);
+        
+        return dtoBuilder.build();
     }
 
     private ConversationDTO.ParticipantDTO convertUserToParticipantDTO(User user) {

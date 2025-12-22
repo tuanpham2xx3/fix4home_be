@@ -237,6 +237,40 @@ Chat/Messaging System đã được triển khai đầy đủ với:
 - ✅ Multiple message types support
 - ✅ Read status tracking
 - ✅ Typing indicators
+- ✅ **Free chat between any users** (NEW)
+- ✅ **Chatbot integration with n8n** (NEW)
+- ✅ **User search functionality** (NEW)
 - ✅ Comprehensive documentation
 
-Hệ thống sẵn sàng để integrate với frontend và triển khai production! 
+Hệ thống sẵn sàng để integrate với frontend và triển khai production!
+
+---
+
+## 🆕 FREE CHAT & CHATBOT FEATURES (Added January 2025)
+
+### Free Chat System
+- Users can now chat with any other user without business context
+- Conversation types: `BUSINESS`, `FREE`, `CHATBOT`
+- New endpoints:
+  - `POST /api/v1/chat/conversations/free` - Create free conversation
+  - `GET /api/v1/chat/conversations/with/{userId}` - Get conversation with user
+  - `POST /api/v1/chat/conversations/find-or-create` - Find or create conversation
+  - `GET /api/v1/users/search` - Search users for chat
+  - `GET /api/v1/users/chat-eligible` - Get chat-eligible users
+
+### Chatbot Integration
+- System chatbot user (`chatbot_support`) automatically created
+- Auto-creates conversation with chatbot when user registers
+- n8n webhook integration for AI responses
+- Webhook endpoint: `POST /api/v1/chatbot/webhook`
+- Configuration in `application.properties`:
+  ```properties
+  chatbot.enabled=true
+  chatbot.user.username=chatbot_support
+  chatbot.n8n.webhook.url=http://localhost:5678/webhook/chatbot
+  ```
+
+### Database Changes
+- Added `conversation_type` field to `conversations` table
+- Migration: `V025__Extend_Chat_For_Free_Chat.sql`
+- Migration: `V026__Create_Chatbot_User.sql` 

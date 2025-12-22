@@ -31,4 +31,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRoleAndStatus(Role role, UserStatus status);
     
     long countByRole(Role role);
+    
+    // Search methods for user search functionality
+    Page<User> findByUsernameContainingIgnoreCase(String keyword, Pageable pageable);
+    
+    Page<User> findByRoleAndStatus(Role role, UserStatus status, Pageable pageable);
+    
+    Page<User> findByIdNotAndStatus(Long excludeId, UserStatus status, Pageable pageable);
+    
+    // Find chatbot user by username
+    Optional<User> findByUsernameAndRole(String username, Role role);
 } 

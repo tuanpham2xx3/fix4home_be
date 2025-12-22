@@ -175,7 +175,9 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(Arrays.asList(
             "http://localhost:3000",  // Dev frontend (React default)
             "http://localhost:8500",  // Dev frontend (Vite admin web)
-            "https://fix4home.com"    // Production frontend
+            "https://fix4home.com",   // Production frontend
+            "http://fe.iceteadev.site",  // Staging frontend (HTTP)
+            "https://fe.iceteadev.site"  // Staging frontend (HTTPS)
         ));
         
         // Allow specific methods
