@@ -27,10 +27,12 @@ import com.fix4home.fix4home.service.EmailVerificationService;
 import com.fix4home.fix4home.service.ActivationTokenService;
 import com.fix4home.fix4home.service.RefreshTokenService;
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -40,6 +42,8 @@ import org.springframework.http.HttpStatus;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Optional;
+import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -56,6 +60,9 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ActivationTokenRepository activationTokenRepository;
+
+    @Value("${email.activation.allowed-domains:http://localhost:3000,http://localhost:8500,https://fix4home.com,https://fe.iceteadev.site}")
+    private String allowedDomains;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -507,9 +514,19 @@ public class AuthController {
     // ===== NEW ACTIVATION ENDPOINTS =====
 
     @GetMapping("/activate/{token}")
-    public ResponseEntity<ApiResponse<Void>> activateAccount(@PathVariable String token) {
+    public ResponseEntity<ApiResponse<Void>> activateAccount(
+            @PathVariable String token,
+            HttpServletRequest request) {
         
         try {
+            // Validate referer/origin domain whitelist
+            if (!isAllowedDomain(request)) {
+                log.warn("Activation attempt from unauthorized domain. Referer: {}, Origin: {}", 
+                        request.getHeader("Referer"), request.getHeader("Origin"));
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.error("Activation is only allowed from authorized domains"));
+            }
+            
             // Verify activation token
             ActivationTokenService.ActivationTokenData tokenData = 
                 activationTokenService.verifyActivationToken(token);
@@ -560,7 +577,16 @@ public class AuthController {
 
     @PostMapping("/verify-activation-token")
     public ResponseEntity<ApiResponse<Map<String, Object>>> verifyActivationToken(
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            HttpServletRequest httpRequest) {
+        
+        // Validate referer/origin domain whitelist
+        if (!isAllowedDomain(httpRequest)) {
+            log.warn("Activation token verification attempt from unauthorized domain. Referer: {}, Origin: {}", 
+                    httpRequest.getHeader("Referer"), httpRequest.getHeader("Origin"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Activation is only allowed from authorized domains"));
+        }
         
         String token = request.get("token");
         if (token == null || token.trim().isEmpty()) {
@@ -873,5 +899,50 @@ public class AuthController {
         
         return ResponseEntity.ok(
                 ApiResponse.success("Activation status retrieved", statusInfo));
+    }
+
+    /**
+     * Check if the request comes from an allowed domain (whitelist)
+     * @param request HTTP request
+     * @return true if domain is allowed
+     */
+    private boolean isAllowedDomain(HttpServletRequest request) {
+        // Get allowed domains from configuration
+        List<String> allowedDomainList = Arrays.asList(allowedDomains.split(","));
+        
+        // Get referer and origin headers
+        String referer = request.getHeader("Referer");
+        String origin = request.getHeader("Origin");
+        
+        // Check if referer or origin matches any allowed domain
+        if (referer != null && !referer.trim().isEmpty()) {
+            for (String allowedDomain : allowedDomainList) {
+                String trimmedDomain = allowedDomain.trim();
+                if (referer.startsWith(trimmedDomain)) {
+                    log.debug("Referer {} matches allowed domain {}", referer, trimmedDomain);
+                    return true;
+                }
+            }
+        }
+        
+        if (origin != null && !origin.trim().isEmpty()) {
+            for (String allowedDomain : allowedDomainList) {
+                String trimmedDomain = allowedDomain.trim();
+                if (origin.equals(trimmedDomain) || origin.startsWith(trimmedDomain)) {
+                    log.debug("Origin {} matches allowed domain {}", origin, trimmedDomain);
+                    return true;
+                }
+            }
+        }
+        
+        // If no referer/origin header, allow (for direct API calls or testing)
+        // In production, you might want to be more strict
+        if (referer == null && origin == null) {
+            log.debug("No referer or origin header, allowing request");
+            return true;
+        }
+        
+        log.warn("Domain not in whitelist. Referer: {}, Origin: {}", referer, origin);
+        return false;
     }
 }
