@@ -65,7 +65,7 @@ public class ImageController {
             log.debug("Current user: {}", currentUser.getUsername());
             
             // Convert string to Boolean (handle "true", "false", null)
-            Boolean isPublic = parseBoolean(isPublicStr, false);
+            Boolean isPublic = parseBoolean(isPublicStr, true);
             log.debug("Parsed isPublic: {}", isPublic);
             
             FileUploadRequest request = FileUploadRequest.builder()
