@@ -38,7 +38,7 @@ public class ActivationTokenService extends BaseService {
     /**
      * Generate and send activation token for registration
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public ActivationTokenResponse generateActivationToken(User user, String action) {
         return generateActivationTokenInternal(user, action, null);
     }
@@ -148,7 +148,6 @@ public class ActivationTokenService extends BaseService {
     /**
      * Internal method to generate activation token
      */
-    @Transactional
     private ActivationTokenResponse generateActivationTokenInternal(User user, String action, String encryptedTempPassword) {
         validateRequired(user, "user");
         validateRequired(action, "action");
