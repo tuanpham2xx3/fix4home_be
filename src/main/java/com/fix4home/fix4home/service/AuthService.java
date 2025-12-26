@@ -23,6 +23,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.security.SecureRandom;
@@ -133,37 +135,55 @@ public class AuthService extends BaseService {
         // Create profile based on role
         createUserProfile(savedUser, request);
 
-        // Send email verification for non-admin users
-        // Email service MUST send email successfully, otherwise registration fails
-        if (savedUser.getStatus() == UserStatus.PENDING_EMAIL_VERIFICATION) {
-            try {
-                ActivationTokenService.ActivationTokenResponse response = 
-                    activationTokenService.generateActivationToken(savedUser, "registration");
-                if (!response.isSuccess()) {
-                    log.error("Failed to send verification email to: {}. Response: {}", 
-                             savedUser.getEmail(), response.getMessage());
-                    throw new BusinessValidationException(
-                        "Failed to send activation email: " + response.getMessage() + 
-                        ". Please try again later.");
-                }
-                log.info("Activation email sent successfully to: {}", savedUser.getEmail());
-            } catch (BusinessValidationException e) {
-                // Re-throw business exceptions
-                throw e;
-            } catch (Exception e) {
-                log.error("Exception sending verification email to: {}", savedUser.getEmail(), e);
-                throw new BusinessValidationException(
-                    "Failed to send activation email. Please try again later.");
-            }
-        }
-
         // Generate token (note: user still needs to verify email before they can login)
         String token = tokenProvider.generateToken(savedUser);
 
         // Create welcome notification for new user registration
         notificationHelperService.createRegisterNotification(savedUser);
 
-        return buildAuthResponse(savedUser, token, request);
+        // Build response first to ensure transaction commits successfully
+        AuthResponse authResponse = buildAuthResponse(savedUser, token, request);
+
+        // Send email verification AFTER transaction commits to avoid rollback issues
+        // Use TransactionSynchronizationManager to send email after commit
+        // Send email in a separate thread to avoid blocking the response
+        if (savedUser.getStatus() == UserStatus.PENDING_EMAIL_VERIFICATION) {
+            final User userToEmail = savedUser; // Final variable for use in inner class
+            TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        // Run email sending in a separate thread to avoid blocking
+                        new Thread(() -> {
+                            try {
+                                log.info("Transaction committed, sending activation email to: {} in background thread", 
+                                        userToEmail.getEmail());
+                                ActivationTokenService.ActivationTokenResponse response = 
+                                    activationTokenService.generateActivationToken(userToEmail, "registration");
+                                if (!response.isSuccess()) {
+                                    log.error("Failed to send verification email to: {}. Response: {}", 
+                                             userToEmail.getEmail(), response.getMessage());
+                                } else {
+                                    log.info("Activation email sent successfully to: {}", userToEmail.getEmail());
+                                }
+                            } catch (Exception e) {
+                                log.error("Error sending activation email after commit to: {}. Exception type: {}, Message: {}", 
+                                         userToEmail.getEmail(),
+                                         e.getClass().getSimpleName(),
+                                         e.getMessage(), 
+                                         e);
+                                // Don't throw exception here as transaction already committed
+                                // Email sending failure won't affect registration success
+                                // Exception is logged but won't block the response
+                            }
+                        }, "EmailSender-" + userToEmail.getEmail()).start();
+                    }
+                }
+            );
+            log.info("Registered email sending to run after transaction commit for: {}", savedUser.getEmail());
+        }
+
+        return authResponse;
     }
 
     public AuthResponse login(LoginRequest request) {

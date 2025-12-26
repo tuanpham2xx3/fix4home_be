@@ -146,23 +146,25 @@ public class ActivationTokenService extends BaseService {
     }
 
     /**
-     * Internal method to generate activation token
+     * Internal method to save token in a separate transaction to avoid lock conflicts
+     * Returns a wrapper with token and isNewToken flag
      */
-    private ActivationTokenResponse generateActivationTokenInternal(User user, String action, String encryptedTempPassword) {
-        validateRequired(user, "user");
-        validateRequired(action, "action");
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class TokenSaveResult {
+        private ActivationToken token;
+        private boolean isNewToken;
+    }
 
+    /**
+     * Internal method to save token in a separate transaction to avoid lock conflicts
+     * Uses REQUIRES_NEW to ensure it runs in a completely separate transaction
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, 
+                   timeout = 5) // 5 seconds timeout
+    private TokenSaveResult saveTokenInTransaction(User user, String action, String encryptedTempPassword, LocalDateTime now) {
         String email = user.getEmail();
-        LocalDateTime now = LocalDateTime.now();
-
-        // Check rate limiting (max 5 emails per hour)
-        long tokensInLastHour = activationTokenRepository.countTokensSentInLastHour(
-            email, now.minusHours(1)
-        );
-        if (tokensInLastHour >= 5) {
-            throw new BusinessValidationException("Too many activation emails sent. Please try again later.");
-        }
-
+        
         // Check for existing active token
         Optional<ActivationToken> existingToken = activationTokenRepository
             .findActiveTokenByEmailAndAction(email, action, now);
@@ -203,10 +205,93 @@ public class ActivationTokenService extends BaseService {
             isNewToken = true;
         }
 
-        // Save token
-        token = activationTokenRepository.save(token);
+        // Save token with retry logic to handle transient lock issues
+        log.info("=== Saving activation token: email={}, action={}, userId={}, isNewToken={} ===", 
+                email, action, user.getId(), isNewToken);
+        
+        int maxRetries = 3;
+        int retryCount = 0;
+        long retryDelayMs = 100; // Start with 100ms delay
+        
+        while (retryCount < maxRetries) {
+            try {
+                log.debug("Attempt {} to save token for email: {}", retryCount + 1, email);
+                token = activationTokenRepository.save(token);
+                log.info("=== Token saved successfully: tokenId={} ===", token.getId());
+                return new TokenSaveResult(token, isNewToken);
+            } catch (org.springframework.dao.PessimisticLockingFailureException e) {
+                retryCount++;
+                if (retryCount >= maxRetries) {
+                    log.error("⚠️ PessimisticLockingFailureException after {} retries when saving token for email: {}. " +
+                             "This usually means another transaction is locking the row. " +
+                             "Exception: {}", maxRetries, email, e.getMessage(), e);
+                    throw new BusinessValidationException(
+                        "Another request is processing. Please wait a moment and try again.");
+                }
+                log.warn("⚠️ PessimisticLockingFailureException on attempt {} for email: {}. Retrying in {}ms...", 
+                         retryCount, email, retryDelayMs);
+                try {
+                    Thread.sleep(retryDelayMs);
+                    retryDelayMs *= 2; // Exponential backoff
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.error("Thread interrupted during retry delay", ie);
+                    throw new BusinessValidationException("Failed to save activation token: interrupted");
+                }
+            } catch (org.springframework.transaction.TransactionTimedOutException e) {
+                log.error("⚠️ Transaction timeout when saving token for email: {}. Exception: {}", 
+                         email, e.getMessage(), e);
+                throw new BusinessValidationException(
+                    "Request timed out. Please try again.");
+            } catch (Exception e) {
+                log.error("⚠️ Unexpected exception when saving token for email: {}. Exception type: {}, Message: {}", 
+                         email, e.getClass().getSimpleName(), e.getMessage(), e);
+                throw new BusinessValidationException("Failed to create activation token: " + e.getMessage());
+            }
+        }
+        
+        // Should never reach here, but just in case
+        throw new BusinessValidationException("Failed to save activation token after retries");
+    }
 
-        // Send email via microservice
+    /**
+     * Internal method to generate activation token
+     * Note: This method should NOT have @Transactional as it's called from a transactional method
+     * and we want to control transaction boundaries explicitly
+     */
+    private ActivationTokenResponse generateActivationTokenInternal(User user, String action, String encryptedTempPassword) {
+        validateRequired(user, "user");
+        validateRequired(action, "action");
+
+        String email = user.getEmail();
+        LocalDateTime now = LocalDateTime.now();
+
+        // Check rate limiting (max 5 emails per hour)
+        long tokensInLastHour = activationTokenRepository.countTokensSentInLastHour(
+            email, now.minusHours(1)
+        );
+        if (tokensInLastHour >= 5) {
+            throw new BusinessValidationException("Too many activation emails sent. Please try again later.");
+        }
+
+        // Save token in a separate transaction to avoid lock conflicts
+        ActivationToken token;
+        boolean isNewToken;
+        try {
+            TokenSaveResult result = saveTokenInTransaction(user, action, encryptedTempPassword, now);
+            token = result.getToken();
+            isNewToken = result.isNewToken();
+        } catch (BusinessValidationException e) {
+            // Re-throw business validation exceptions
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to save activation token for email: {}. Exception: {}", email, e.getMessage(), e);
+            throw new BusinessValidationException("Failed to create activation token: " + e.getMessage());
+        }
+
+        // Send email via microservice (outside of transaction to avoid blocking)
+        log.info("=== About to call emailVerificationService.sendActivationLink: email={}, action={}, userId={} ===", 
+                email, action, user.getId());
         try {
             EmailVerificationService.ActivationResponse emailResponse;
             
@@ -214,11 +299,15 @@ public class ActivationTokenService extends BaseService {
                 // For password reset, we need to get the plain text password from the response
                 // Since we generated it in generatePasswordResetToken method
                 // We'll pass it through a different mechanism
+                log.info("Calling sendActivationLink for password_reset");
                 emailResponse = emailVerificationService.sendActivationLink(email, action, user.getId());
             } else {
                 // For registration and other actions
+                log.info("Calling sendActivationLink for registration/other action");
                 emailResponse = emailVerificationService.sendActivationLink(email, action, user.getId());
             }
+            log.info("Email service response received: success={}, message={}", 
+                    emailResponse.isSuccess(), emailResponse.getMessage());
             
             if (!emailResponse.isSuccess()) {
                 // If email sending failed and this was a new token, delete it
@@ -231,13 +320,32 @@ public class ActivationTokenService extends BaseService {
             }
         } catch (BusinessValidationException e) {
             // Re-throw BusinessValidationException as-is
+            log.error("BusinessValidationException when sending activation email to: {}. Message: {}", 
+                     email, e.getMessage(), e);
             throw e;
+        } catch (RuntimeException e) {
+            // If email sending failed and this was a new token, delete it
+            if (isNewToken) {
+                activationTokenRepository.delete(token);
+            }
+            log.error("RuntimeException when sending activation email to: {}. Exception type: {}, Cause: {}, Message: {}", 
+                     email, 
+                     e.getClass().getSimpleName(),
+                     e.getCause() != null ? e.getCause().getClass().getSimpleName() : "null",
+                     e.getMessage(), 
+                     e);
+            throw new BusinessValidationException("Failed to send activation email: " + e.getMessage());
         } catch (Exception e) {
             // If email sending failed and this was a new token, delete it
             if (isNewToken) {
                 activationTokenRepository.delete(token);
             }
-            log.error("Exception sending activation email to: {}. Error: {}", email, e.getMessage(), e);
+            log.error("Unexpected exception when sending activation email to: {}. Exception type: {}, Cause: {}, Message: {}", 
+                     email,
+                     e.getClass().getSimpleName(),
+                     e.getCause() != null ? e.getCause().getClass().getSimpleName() : "null",
+                     e.getMessage(), 
+                     e);
             throw new BusinessValidationException("Failed to send activation email: " + e.getMessage());
         }
 

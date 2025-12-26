@@ -1,6 +1,7 @@
 package com.fix4home.fix4home.service;
 
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -28,6 +29,7 @@ public class EmailVerificationService {
 
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
+    private final CircuitBreakerRegistry circuitBreakerRegistry;
     
     // Metrics
     private Counter emailSendSuccessCounter;
@@ -299,16 +301,42 @@ public class EmailVerificationService {
     @CircuitBreaker(name = "emailService", fallbackMethod = "sendActivationLinkFallback")
     @Retry(name = "emailService")
     public ActivationResponse sendActivationLink(String email, String action, Long userId) {
+        log.info("=== START sendActivationLink: email={}, action={}, userId={} ===", email, action, userId);
+        log.info("Email service URL: {}, Service healthy: {}", emailServiceUrl, isServiceHealthy());
+        
+        // Check circuit breaker state
+        try {
+            io.github.resilience4j.circuitbreaker.CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("emailService");
+            if (cb != null) {
+                io.github.resilience4j.circuitbreaker.CircuitBreaker.State state = cb.getState();
+                io.github.resilience4j.circuitbreaker.CircuitBreaker.Metrics metrics = cb.getMetrics();
+                log.info("Circuit breaker state before call: {}, Failure rate: {}%, Successful calls: {}, Failed calls: {}", 
+                        state, 
+                        metrics.getFailureRate(),
+                        metrics.getNumberOfSuccessfulCalls(),
+                        metrics.getNumberOfFailedCalls());
+                if (state == io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN) {
+                    log.error("⚠️ CIRCUIT BREAKER IS OPEN - Request will be blocked and fallback will be called!");
+                    log.error("⚠️ This means email service requests are being blocked. Email service will NOT receive the request.");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not check circuit breaker state: {}", e.getMessage());
+        }
+        
         // Health check before sending
         if (!isServiceHealthy()) {
             log.warn("Email service is unhealthy, performing health check before sending to: {}", email);
-            if (!checkServiceHealth()) {
+            boolean healthCheckResult = checkServiceHealth();
+            log.info("Health check result: {}", healthCheckResult);
+            if (!healthCheckResult) {
                 log.error("Email service is down, cannot send activation link to: {}", email);
                 emailSendFailureCounter.increment();
                 throw new RuntimeException("Email service is unavailable");
             }
         }
         
+        log.info("Proceeding to send activation link - service is healthy");
         Timer.Sample sample = Timer.start(meterRegistry);
         try {
             // Prepare request headers
@@ -321,7 +349,7 @@ public class EmailVerificationService {
             requestBody.put("email", email);
             requestBody.put("action", action);
             requestBody.put("system", systemName);
-            requestBody.put("baseUrl", frontendBaseUrl);
+            requestBody.put("baseUrl", frontendBaseUrl); // Required by email service
             
             Map<String, Object> customData = new HashMap<>();
             customData.put("user_id", userId.toString());
@@ -331,13 +359,16 @@ public class EmailVerificationService {
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
             // Log request details for debugging
+            String requestUrl = emailServiceUrl + "/generate-activation";
             log.info("Sending activation link request to: {} for email: {}, action: {}", 
-                    emailServiceUrl + "/generate-activation", email, action);
+                    requestUrl, email, action);
             log.debug("Request body: {}", requestBody);
+            log.debug("Request headers: x-api-key present: {}", headers.containsKey("x-api-key"));
 
             // Send request to microservice
+            log.debug("Calling email service at: {}", requestUrl);
             ResponseEntity<Map> response = restTemplate.postForEntity(
-                emailServiceUrl + "/generate-activation", 
+                requestUrl, 
                 request, 
                 Map.class
             );
@@ -424,6 +455,9 @@ public class EmailVerificationService {
         } catch (ResourceAccessException e) {
             log.error("Cannot connect to email service at {} for email: {}. Error: {}", 
                      emailServiceUrl, email, e.getMessage(), e);
+            log.error("ResourceAccessException details - Cause: {}, Message: {}", 
+                     e.getCause() != null ? e.getCause().getClass().getSimpleName() : "null", 
+                     e.getMessage());
             emailSendFailureCounter.increment();
             sample.stop(emailSendTimer);
             serviceHealthy.set(false);
@@ -437,6 +471,9 @@ public class EmailVerificationService {
             throw new RuntimeException("Email service error: " + e.getStatusCode(), e);
         } catch (Exception e) {
             log.error("Unexpected error when sending activation link to {}: {}", email, e.getMessage(), e);
+            log.error("Exception type: {}, Cause: {}", 
+                     e.getClass().getSimpleName(),
+                     e.getCause() != null ? e.getCause().getClass().getSimpleName() : "null");
             emailSendFailureCounter.increment();
             sample.stop(emailSendTimer);
             serviceHealthy.set(false);
@@ -448,7 +485,12 @@ public class EmailVerificationService {
      * Fallback method for circuit breaker
      */
     public ActivationResponse sendActivationLinkFallback(String email, String action, Long userId, Exception e) {
+        log.error("=== CIRCUIT BREAKER ACTIVATED ===");
         log.error("Circuit breaker activated for email service. Fallback triggered for email: {}", email, e);
+        log.error("Exception that triggered fallback: type={}, cause={}, message={}", 
+                 e != null ? e.getClass().getSimpleName() : "null",
+                 e != null && e.getCause() != null ? e.getCause().getClass().getSimpleName() : "null",
+                 e != null ? e.getMessage() : "null");
         emailSendFailureCounter.increment();
         serviceHealthy.set(false);
         return ActivationResponse.builder()
@@ -525,8 +567,8 @@ public class EmailVerificationService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("email", email);
             requestBody.put("action", action);
-            requestBody.put("baseUrl", frontendBaseUrl);
             requestBody.put("system", systemName);
+            requestBody.put("baseUrl", frontendBaseUrl); // Required by email service
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 

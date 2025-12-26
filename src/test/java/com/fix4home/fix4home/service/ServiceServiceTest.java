@@ -23,6 +23,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -54,7 +55,13 @@ class ServiceServiceTest {
     private User adminUser;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        // Inject userRepository into BaseService parent class
+        // Since BaseService uses @Autowired, Mockito doesn't inject it automatically
+        Field userRepositoryField = BaseService.class.getDeclaredField("userRepository");
+        userRepositoryField.setAccessible(true);
+        userRepositoryField.set(serviceService, userRepository);
+        
         // Setup test data
         testService = Service.builder()
                 .id(1L)
@@ -90,9 +97,6 @@ class ServiceServiceTest {
                 .role(Role.ADMIN)
                 .status(UserStatus.ACTIVE)
                 .build();
-
-        // Setup security context
-        setupSecurityContext(adminUser);
     }
 
     private void setupSecurityContext(User user) {
@@ -100,10 +104,11 @@ class ServiceServiceTest {
         var authentication = new UsernamePasswordAuthenticationToken(
                 user.getUsername(), null, authorities);
         
-        when(securityContext.getAuthentication()).thenReturn(authentication);
+        // Use lenient() to avoid UnnecessaryStubbing errors for tests that don't use security context
+        lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
         SecurityContextHolder.setContext(securityContext);
         
-        when(userRepository.findByUsername(user.getUsername()))
+        lenient().when(userRepository.findByUsername(user.getUsername()))
                 .thenReturn(Optional.of(user));
     }
 
@@ -111,6 +116,7 @@ class ServiceServiceTest {
     @DisplayName("Should get all services for admin")
     void getAllServices_WhenAdminRole_ShouldReturnAllServices() {
         // Arrange
+        setupSecurityContext(adminUser);
         List<Service> services = List.of(testService);
         when(serviceRepository.findAll(any(Sort.class))).thenReturn(services);
 
@@ -145,6 +151,7 @@ class ServiceServiceTest {
     @DisplayName("Should get services with pagination for admin")
     void getAllServicesWithPagination_WhenValidParams_ShouldReturnPagedResults() {
         // Arrange
+        setupSecurityContext(adminUser);
         Pageable pageable = PageRequest.of(0, 10, Sort.by("name").ascending());
         Page<Service> servicePage = new PageImpl<>(List.of(testService), pageable, 1);
         when(serviceRepository.findAll(any(Pageable.class))).thenReturn(servicePage);
@@ -162,6 +169,8 @@ class ServiceServiceTest {
     @Test
     @DisplayName("Should throw exception for invalid pagination params")
     void getAllServicesWithPagination_WhenInvalidParams_ShouldThrowException() {
+        // Arrange
+        setupSecurityContext(adminUser);
         // Act & Assert
         assertThrows(BusinessValidationException.class, 
             () -> serviceService.getAllServicesWithPagination(-1, 10, "name", "asc"));
@@ -238,6 +247,7 @@ class ServiceServiceTest {
     @DisplayName("Should create service successfully")
     void createService_WhenValidRequest_ShouldCreateService() {
         // Arrange
+        setupSecurityContext(adminUser);
         when(serviceRepository.existsByName(createRequest.getName())).thenReturn(false);
         when(serviceRepository.save(any(Service.class))).thenReturn(testService);
 
@@ -255,6 +265,7 @@ class ServiceServiceTest {
     @DisplayName("Should throw exception when creating service with existing name")
     void createService_WhenDuplicateName_ShouldThrowException() {
         // Arrange
+        setupSecurityContext(adminUser);
         when(serviceRepository.existsByName(createRequest.getName())).thenReturn(true);
 
         // Act & Assert
@@ -268,6 +279,7 @@ class ServiceServiceTest {
     @DisplayName("Should update service successfully")
     void updateService_WhenValidRequest_ShouldUpdateService() {
         // Arrange
+        setupSecurityContext(adminUser);
         when(serviceRepository.findById(1L)).thenReturn(Optional.of(testService));
         when(serviceRepository.existsByName(updateRequest.getName())).thenReturn(false);
         when(serviceRepository.save(any(Service.class))).thenReturn(testService);
@@ -285,6 +297,7 @@ class ServiceServiceTest {
     @DisplayName("Should soft delete service")
     void deleteService_WhenValidId_ShouldSoftDeleteService() {
         // Arrange
+        setupSecurityContext(adminUser);
         when(serviceRepository.findById(1L)).thenReturn(Optional.of(testService));
         when(serviceRepository.save(any(Service.class))).thenReturn(testService);
 
@@ -300,6 +313,7 @@ class ServiceServiceTest {
     @DisplayName("Should hard delete service")
     void hardDeleteService_WhenValidId_ShouldHardDeleteService() {
         // Arrange
+        setupSecurityContext(adminUser);
         when(serviceRepository.existsById(1L)).thenReturn(true);
 
         // Act
@@ -314,6 +328,7 @@ class ServiceServiceTest {
     @DisplayName("Should toggle service status")
     void toggleServiceStatus_WhenValidId_ShouldToggleStatus() {
         // Arrange
+        setupSecurityContext(adminUser);
         testService.setStatus(UserStatus.ACTIVE);
         when(serviceRepository.findById(1L)).thenReturn(Optional.of(testService));
         when(serviceRepository.save(any(Service.class))).thenReturn(testService);
@@ -330,6 +345,8 @@ class ServiceServiceTest {
     @Test
     @DisplayName("Should throw exception for null request in createService")
     void createService_WhenNullRequest_ShouldThrowException() {
+        // Arrange
+        setupSecurityContext(adminUser);
         // Act & Assert
         assertThrows(BusinessValidationException.class, 
             () -> serviceService.createService(null));

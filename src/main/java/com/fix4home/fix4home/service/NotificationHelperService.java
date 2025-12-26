@@ -86,8 +86,9 @@ public class NotificationHelperService {
 
     /**
      * Create welcome notification when user registers
+     * Removed REQUIRES_NEW to avoid nested transaction lock issues
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.MANDATORY)
     public void createRegisterNotification(User user) {
         try {
             Notification notification = Notification.builder()
@@ -101,8 +102,10 @@ public class NotificationHelperService {
             notificationRepository.save(notification);
             log.debug("Created register notification for user: {}", user.getId());
         } catch (Exception e) {
-            log.error("Failed to create register notification for user: {}", user.getId(), e);
+            log.error("Failed to create register notification for user: {}, Error: {}", 
+                     user.getId(), e.getMessage());
             // Don't throw exception - notification failure shouldn't affect registration
+            // But log it for debugging
         }
     }
 }
