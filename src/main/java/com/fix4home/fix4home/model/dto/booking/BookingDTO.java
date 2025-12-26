@@ -24,6 +24,7 @@ public class BookingDTO {
     private String wardCode;
     private Boolean needsSurvey;
     private BookingStatus status;
+    private Long userId; // User ID - populated for admin view
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

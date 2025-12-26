@@ -1,5 +1,6 @@
 package com.fix4home.fix4home.model.entity;
 
+import com.fix4home.fix4home.model.enums.NotificationTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -27,6 +28,11 @@ public class Notification {
     
     @Column(columnDefinition = "TEXT")
     private String message;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false)
+    @Builder.Default
+    private NotificationTypeEnum type = NotificationTypeEnum.INFO;
     
     @Column(name = "is_read")
     @Builder.Default

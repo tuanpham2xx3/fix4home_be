@@ -1,7 +1,10 @@
 package com.fix4home.fix4home.controller;
 
 import com.fix4home.fix4home.model.dto.admin.*;
+import com.fix4home.fix4home.model.dto.booking.BookingDTO;
+import com.fix4home.fix4home.model.dto.booking.BookingListResponseDTO;
 import com.fix4home.fix4home.model.dto.common.ApiResponse;
+import com.fix4home.fix4home.model.enums.BookingStatus;
 import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.service.AdminService;
 import com.fix4home.fix4home.security.SecurityConstants;
@@ -100,6 +103,52 @@ public class AdminController {
         
         return ResponseEntity.ok(
                 ApiResponse.success("User deleted successfully", null));
+    }
+
+    // ==================== BOOKING MANAGEMENT ====================
+
+    @GetMapping("/bookings")
+    @Operation(summary = "Get all bookings", 
+               description = "Admin views all bookings with pagination, sorting, and status filtering")
+    public ResponseEntity<ApiResponse<BookingListResponseDTO>> getAllBookings(
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "Sort field") @RequestParam(defaultValue = "createdAt") String sortBy,
+            @Parameter(description = "Sort direction") @RequestParam(defaultValue = "desc") String sortDir,
+            @Parameter(description = "Filter by status") @RequestParam(required = false) BookingStatus status) {
+        log.info("Admin fetching all bookings - page: {}, size: {}, status: {}", page, size, status);
+        
+        BookingListResponseDTO bookings = adminService.getAllBookings(page, size, sortBy, sortDir, status);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Bookings retrieved successfully", bookings));
+    }
+
+    @GetMapping("/bookings/{id}")
+    @Operation(summary = "Get booking details", 
+               description = "Admin views detailed information about a specific booking")
+    public ResponseEntity<ApiResponse<BookingDTO>> getBookingById(
+            @Parameter(description = "Booking ID") @PathVariable Long id) {
+        log.info("Admin fetching booking details for ID: {}", id);
+        
+        BookingDTO booking = adminService.getBookingById(id);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Booking details retrieved successfully", booking));
+    }
+
+    @PutMapping("/bookings/{id}/status")
+    @Operation(summary = "Update booking status", 
+               description = "Admin updates a booking's status (PENDING, COMPLETED, CANCELLED)")
+    public ResponseEntity<ApiResponse<BookingDTO>> updateBookingStatus(
+            @Parameter(description = "Booking ID") @PathVariable Long id,
+            @Valid @RequestBody UpdateBookingStatusRequest request) {
+        log.info("Admin updating booking status for ID: {} to {}", id, request.getStatus());
+        
+        BookingDTO booking = adminService.updateBookingStatus(id, request);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success("Booking status updated successfully", booking));
     }
 
     // ==================== TECHNICIAN APPROVAL MANAGEMENT ====================

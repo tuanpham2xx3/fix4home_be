@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 public class BookingService extends BaseService implements DTOConverter<Booking, BookingDTO> {
 
     private final BookingRepository bookingRepository;
+    private final NotificationHelperService notificationHelperService;
 
     // ==================== CUSTOMER OPERATIONS ====================
 
@@ -51,6 +52,10 @@ public class BookingService extends BaseService implements DTOConverter<Booking,
                 .build();
 
         Booking savedBooking = bookingRepository.save(booking);
+        
+        // Create notification for booking creation
+        notificationHelperService.createBookingNotification(user, savedBooking);
+        
         return convertToDTO(savedBooking);
     }
 
@@ -161,6 +166,9 @@ public class BookingService extends BaseService implements DTOConverter<Booking,
 
         booking.setStatus(BookingStatus.CANCELLED);
         Booking savedBooking = bookingRepository.save(booking);
+
+        // Create notification for booking cancellation
+        notificationHelperService.createCancelBookingNotification(user, savedBooking);
 
         return convertToDTO(savedBooking);
     }

@@ -442,6 +442,7 @@ public class NotificationService extends BaseService {
                 .userId(notification.getUser().getId())
                 .title(notification.getTitle())
                 .message(notification.getMessage())
+                .type(notification.getType())
                 .isRead(notification.getIsRead())
                 .createdAt(notification.getCreatedAt())
                 .timeAgo(timeAgo)

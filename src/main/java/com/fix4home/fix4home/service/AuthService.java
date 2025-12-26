@@ -44,6 +44,7 @@ public class AuthService extends BaseService {
     private final ActivationTokenService activationTokenService;
     private final RefreshTokenService refreshTokenService;
     private final FileManagementService fileManagementService;
+    private final NotificationHelperService notificationHelperService;
 
     @Value("${admin.registration.key}")
     private String adminRegistrationKey;
@@ -159,6 +160,9 @@ public class AuthService extends BaseService {
         // Generate token (note: user still needs to verify email before they can login)
         String token = tokenProvider.generateToken(savedUser);
 
+        // Create welcome notification for new user registration
+        notificationHelperService.createRegisterNotification(savedUser);
+
         return buildAuthResponse(savedUser, token, request);
     }
 
@@ -216,6 +220,9 @@ public class AuthService extends BaseService {
 
         // Generate token
         String token = tokenProvider.generateToken(user);
+
+        // Create login notification
+        notificationHelperService.createLoginNotification(user);
 
         return buildAuthResponse(user, token, null);
     }

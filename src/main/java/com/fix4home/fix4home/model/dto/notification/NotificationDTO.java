@@ -1,5 +1,6 @@
 package com.fix4home.fix4home.model.dto.notification;
 
+import com.fix4home.fix4home.model.enums.NotificationTypeEnum;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +18,7 @@ public class NotificationDTO {
     private Long userId;
     private String title;
     private String message;
+    private NotificationTypeEnum type;
     private Boolean isRead;
     private LocalDateTime createdAt;
     

@@ -2,7 +2,10 @@ package com.fix4home.fix4home.service;
 
 import com.fix4home.fix4home.exception.*;
 import com.fix4home.fix4home.model.dto.admin.*;
+import com.fix4home.fix4home.model.dto.booking.BookingDTO;
+import com.fix4home.fix4home.model.dto.booking.BookingListResponseDTO;
 import com.fix4home.fix4home.model.entity.*;
+import com.fix4home.fix4home.model.enums.BookingStatus;
 import com.fix4home.fix4home.model.enums.Role;
 import com.fix4home.fix4home.model.enums.ServiceRequestStatus;
 import com.fix4home.fix4home.model.enums.UserStatus;
@@ -37,6 +40,7 @@ public class AdminService extends BaseService {
     private final CustomerProfileRepository customerProfileRepository;
     private final TechnicianProfileRepository technicianProfileRepository;
     private final AddressRepository addressRepository;
+    private final BookingRepository bookingRepository;
 
     // ==================== SYSTEM OVERVIEW ====================
 
@@ -209,6 +213,76 @@ public class AdminService extends BaseService {
         }
 
         userRepository.delete(user);
+    }
+
+    // ==================== BOOKING MANAGEMENT ====================
+
+    @Transactional(readOnly = true)
+    public BookingListResponseDTO getAllBookings(int page, int size, String sortBy, String sortDir, BookingStatus status) {
+        logBusinessOperation("GET_ALL_BOOKINGS", "page=" + page, "status=" + status);
+        requireRole(Role.ADMIN);
+
+        validatePaginationParams(page, size);
+        validateSortDirection(sortDir);
+
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
+                   Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Booking> bookingPage;
+        if (status != null) {
+            bookingPage = bookingRepository.findByStatus(status, pageable);
+        } else {
+            bookingPage = bookingRepository.findAll(pageable);
+        }
+        
+        List<BookingDTO> bookingDTOs = bookingPage.getContent().stream()
+                .map(this::convertToBookingDTO)
+                .collect(Collectors.toList());
+        
+        return BookingListResponseDTO.builder()
+                .bookings(bookingDTOs)
+                .total(bookingPage.getTotalElements())
+                .page(page)
+                .limit(size)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public BookingDTO getBookingById(Long bookingId) {
+        logBusinessOperation("GET_BOOKING_BY_ID", "bookingId=" + bookingId);
+        requireRole(Role.ADMIN);
+
+        validatePositiveId(bookingId, "bookingId");
+        Booking booking = findBookingById(bookingId);
+
+        return convertToBookingDTO(booking);
+    }
+
+    @Transactional
+    public BookingDTO updateBookingStatus(Long bookingId, UpdateBookingStatusRequest request) {
+        logBusinessOperation("UPDATE_BOOKING_STATUS", "bookingId=" + bookingId, "status=" + request.getStatus());
+        requireRole(Role.ADMIN);
+
+        validatePositiveId(bookingId, "bookingId");
+        validateRequired(request, "request");
+        validateRequired(request.getStatus(), "status");
+
+        Booking booking = findBookingById(bookingId);
+        
+        // Update status
+        booking.setStatus(request.getStatus());
+        
+        // Note field is not stored in Booking entity currently, but we can log it
+        if (request.getNote() != null && !request.getNote().isEmpty()) {
+            log.info("Admin updated booking {} status to {} with note: {}", 
+                    bookingId, request.getStatus(), request.getNote());
+        }
+        
+        Booking savedBooking = bookingRepository.save(booking);
+
+        return convertToBookingDTO(savedBooking);
     }
 
     // ==================== TECHNICIAN APPROVAL MANAGEMENT ====================
@@ -691,5 +765,28 @@ public class AdminService extends BaseService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    private Booking findBookingById(Long bookingId) {
+        return bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new BookingNotFoundException(bookingId));
+    }
+
+    private BookingDTO convertToBookingDTO(Booking booking) {
+        return BookingDTO.builder()
+                .id(booking.getId())
+                .title(booking.getTitle())
+                .address(booking.getAddress())
+                .date(booking.getDate())
+                .notes(booking.getNotes())
+                .phone(booking.getPhone())
+                .name(booking.getName())
+                .wardCode(booking.getWardCode())
+                .needsSurvey(booking.getNeedsSurvey())
+                .status(booking.getStatus())
+                .userId(booking.getUser() != null ? booking.getUser().getId() : null)
+                .createdAt(booking.getCreatedAt())
+                .updatedAt(booking.getUpdatedAt())
+                .build();
     }
 } 
